@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GATE 2027 CyberTracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for webkit to match the theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020617; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #0f766e; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0d9488; 
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500/30 overflow-x-hidden relative">
+    
+    <div id="app"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- INITIAL DATA ---
+        const INITIAL_SUBJECTS = [
+            { id: 'applied-thermo', name: 'Applied Thermodynamics', chapters: [{ id: 'ath-1', name: 'VCRS', theory: false, questions: false }, { id: 'ath-2', name: 'Analysis of VCRS', theory: false, questions: false }, { id: 'ath-3', name: 'Vapour Absorption System', theory: false, questions: false }, { id: 'ath-4', name: 'Gas Refrigeration', theory: false, questions: false }, { id: 'ath-5', name: 'Refrigerants', theory: false, questions: false }, { id: 'ath-6', name: 'Psychrometry Basics', theory: false, questions: false }, { id: 'ath-7', name: 'Psychrometry', theory: false, questions: false }, { id: 'ath-8', name: 'Thermodynamic Cycles', theory: false, questions: false }, { id: 'ath-9', name: 'Otto Cycle Analysis', theory: false, questions: false }, { id: 'ath-10', name: 'Diesel Cycle Analysis', theory: false, questions: false }, { id: 'ath-11', name: 'Dual Cycle Analysis', theory: false, questions: false }, { id: 'ath-12', name: 'MEP & Efficiencies', theory: false, questions: false }, { id: 'ath-13', name: 'Engine Tests and Analysis', theory: false, questions: false }, { id: 'ath-14', name: 'Brayton Cycle', theory: false, questions: false }, { id: 'ath-15', name: 'Brayton Cycle Analysis', theory: false, questions: false }, { id: 'ath-16', name: 'Reheat Cycle', theory: false, questions: false }, { id: 'ath-17', name: 'Regeneration', theory: false, questions: false }] },
+            { id: 'basic-thermo', name: 'Basic Thermodynamics', chapters: [{ id: 'bth-1', name: 'Basic Concept', theory: false, questions: false }, { id: 'bth-2', name: 'Work and Heat', theory: false, questions: false }, { id: 'bth-3', name: 'First law of Thermodynamics', theory: false, questions: false }, { id: 'bth-4', name: 'Second law of Thermodynamics', theory: false, questions: false }, { id: 'bth-5', name: 'Entropy', theory: false, questions: false }, { id: 'bth-6', name: 'Exergy', theory: false, questions: false }, { id: 'bth-7', name: 'Properties of Pure Substance', theory: false, questions: false }, { id: 'bth-8', name: 'Thermodynamic Relation', theory: false, questions: false }] },
+            { id: 'math', name: 'Engineering Mathematics', chapters: [{ id: 'math-1', name: 'Linear Algebra', theory: false, questions: false }, { id: 'math-2', name: 'Calculus', theory: false, questions: false }, { id: 'math-3', name: 'Vector Calculus', theory: false, questions: false }, { id: 'math-4', name: 'Differential Equations', theory: false, questions: false }, { id: 'math-5', name: 'Numerical Methods', theory: false, questions: false }, { id: 'math-6', name: 'Laplace Transform and Fourier Series', theory: false, questions: false }, { id: 'math-7', name: 'Complex Analysis', theory: false, questions: false }, { id: 'math-8', name: 'Probability and Statistics', theory: false, questions: false }] },
+            { id: 'mechanics', name: 'Engineering Mechanics', chapters: [{ id: 'em-1', name: 'Basic Concepts', theory: false, questions: false }, { id: 'em-2', name: 'Equilibrium', theory: false, questions: false }, { id: 'em-3', name: 'Friction & Its Applications', theory: false, questions: false }, { id: 'em-4', name: 'Truss & Frames', theory: false, questions: false }, { id: 'em-5', name: 'Centroid and Moment of Inertia', theory: false, questions: false }, { id: 'em-6', name: 'Kinematics of Particles', theory: false, questions: false }, { id: 'em-7', name: 'Kinematics of Rigid Bodies', theory: false, questions: false }, { id: 'em-8', name: 'Kinetics of Particles', theory: false, questions: false }, { id: 'em-9', name: 'Kinetics of Rigid Bodies', theory: false, questions: false }, { id: 'em-10', name: "Lagrange's Equation of Motion", theory: false, questions: false }] },
+            { id: 'fmm', name: 'Fluid Mechanics and Machinery', chapters: [{ id: 'fmm-1', name: 'Fluid and its Properties', theory: false, questions: false }, { id: 'fmm-2', name: 'Pressure and its Measurement', theory: false, questions: false }, { id: 'fmm-3', name: 'Hydrostatic Forces', theory: false, questions: false }, { id: 'fmm-4', name: 'Buoyancy and Stability', theory: false, questions: false }, { id: 'fmm-5', name: 'Fluid Kinematics', theory: false, questions: false }, { id: 'fmm-6', name: 'Fluid Dynamics', theory: false, questions: false }, { id: 'fmm-7', name: 'Laminar Flow', theory: false, questions: false }, { id: 'fmm-8', name: 'Flow Through Pipes', theory: false, questions: false }, { id: 'fmm-9', name: 'Dimensional Analysis and Modeling', theory: false, questions: false }, { id: 'fmm-10', name: 'Boundary Layer Theory', theory: false, questions: false }, { id: 'fmm-11', name: 'Drag And Lift', theory: false, questions: false }, { id: 'fmm-12', name: 'Turbulent Flow', theory: false, questions: false }, { id: 'fmm-13', name: 'Hydraulic Machinery', theory: false, questions: false }] },
+            { id: 'aptitude', name: 'General Aptitude', chapters: [{ id: 'apt-1', name: 'Quantitative Aptitude', theory: false, questions: false }, { id: 'apt-2', name: 'Analytical Aptitude', theory: false, questions: false }, { id: 'apt-3', name: 'Spatial Aptitude', theory: false, questions: false }] },
+            { id: 'ht', name: 'Heat Transfer', chapters: [{ id: 'ht-1', name: 'Introduction', theory: false, questions: false }, { id: 'ht-2', name: 'Steady Conduction', theory: false, questions: false }, { id: 'ht-3', name: 'Critical Radius of Insulation', theory: false, questions: false }, { id: 'ht-4', name: 'Fins', theory: false, questions: false }, { id: 'ht-5', name: 'Unsteady Conduction Heat Transfer', theory: false, questions: false }, { id: 'ht-6', name: 'Convection Heat Transfer', theory: false, questions: false }, { id: 'ht-7', name: 'Radiation Heat Transfer', theory: false, questions: false }, { id: 'ht-8', name: 'Boiling and Condensation', theory: false, questions: false }, { id: 'ht-9', name: 'Heat Exchanger', theory: false, questions: false }] },
+            { id: 'ie', name: 'Industrial Engineering', chapters: [{ id: 'ie-1', name: 'Forecasting', theory: false, questions: false }, { id: 'ie-2', name: 'Break Even Analysis', theory: false, questions: false }, { id: 'ie-3', name: 'Production Planning', theory: false, questions: false }, { id: 'ie-4', name: 'Linear Programming', theory: false, questions: false }, { id: 'ie-5', name: 'Transportation', theory: false, questions: false }, { id: 'ie-6', name: 'Assignment & Plant Layout', theory: false, questions: false }, { id: 'ie-7', name: 'PERT & CPM', theory: false, questions: false }, { id: 'ie-8', name: 'Inventory Control', theory: false, questions: false }, { id: 'ie-9', name: 'Queuing Theory', theory: false, questions: false }, { id: 'ie-10', name: 'Work Study', theory: false, questions: false }, { id: 'ie-11', name: 'Control Chart', theory: false, questions: false }] },
+            { id: 'md', name: 'Machine Design', chapters: [{ id: 'md-1', name: 'Brakes', theory: false, questions: false }, { id: 'md-2', name: 'Clutches', theory: false, questions: false }, { id: 'md-3', name: 'Design Against Static Loads', theory: false, questions: false }, { id: 'md-4', name: 'Design Against Fluctuating Loads', theory: false, questions: false }, { id: 'md-5', name: 'Welded, Riveted and Bolted Joints', theory: false, questions: false }, { id: 'md-6', name: 'Bearings', theory: false, questions: false }, { id: 'md-7', name: 'Gears', theory: false, questions: false }, { id: 'md-8', name: 'Springs', theory: false, questions: false }, { id: 'md-9', name: 'Shafts, Keys and Coupling', theory: false, questions: false }] },
+            { id: 'mfg-1', name: 'Manufacturing Process 1', chapters: [{ id: 'mfg1-1', name: 'Metal Forming', theory: false, questions: false }, { id: 'mfg1-2', name: 'Additional Topics', theory: false, questions: false }, { id: 'mfg1-3', name: 'Metrology', theory: false, questions: false }, { id: 'mfg1-4', name: 'Casting', theory: false, questions: false }] },
+            { id: 'mfg-2', name: 'Manufacturing Process 2', chapters: [{ id: 'mfg2-1', name: 'Theory Of Metal Cutting', theory: false, questions: false }, { id: 'mfg2-2', name: 'Tool Life', theory: false, questions: false }, { id: 'mfg2-3', name: 'Non Traditional Machining Method', theory: false, questions: false }, { id: 'mfg2-4', name: 'Welding', theory: false, questions: false }, { id: 'mfg2-5', name: 'NC, CNC', theory: false, questions: false }, { id: 'mfg2-6', name: 'Machine Tool', theory: false, questions: false }, { id: 'mfg2-7', name: 'Additive Manufacturing', theory: false, questions: false }] },
+            { id: 'ms', name: 'Material Science', chapters: [{ id: 'ms-1', name: 'Phase Diagram', theory: false, questions: false }, { id: 'ms-2', name: 'Dislocation Theory', theory: false, questions: false }, { id: 'ms-3', name: 'TTT Diagram', theory: false, questions: false }, { id: 'ms-4', name: 'Heat Treatment', theory: false, questions: false }, { id: 'ms-5', name: 'Crystallography', theory: false, questions: false }, { id: 'ms-6', name: 'Corrosion', theory: false, questions: false }, { id: 'ms-7', name: 'Nanomaterial and Polymer', theory: false, questions: false }, { id: 'ms-8', name: 'Ceramic and Composites', theory: false, questions: false }] },
+            { id: 'som', name: 'Strength of Materials', chapters: [{ id: 'som-1', name: 'Introduction & Properties of Materials', theory: false, questions: false }, { id: 'som-2', name: 'Axially Loaded Members', theory: false, questions: false }, { id: 'som-3', name: 'Torsion in Circular Shafts', theory: false, questions: false }, { id: 'som-4', name: 'Shear Forces and Bending Moments', theory: false, questions: false }, { id: 'som-5', name: 'Bending Stresses in Beams', theory: false, questions: false }, { id: 'som-6', name: 'Shear Stresses in Beams', theory: false, questions: false }, { id: 'som-7', name: 'Deflection of Beams', theory: false, questions: false }, { id: 'som-8', name: 'Energy Methods', theory: false, questions: false }, { id: 'som-9', name: 'Complex Stresses and Strains', theory: false, questions: false }, { id: 'som-10', name: 'Pressure Vessels', theory: false, questions: false }, { id: 'som-11', name: 'Combine Loading', theory: false, questions: false }, { id: 'som-12', name: 'Columns', theory: false, questions: false }] },
+            { id: 'tom', name: 'Theory of Machines', chapters: [{ id: 'tom-1', name: 'Simple Mechanism', theory: false, questions: false }, { id: 'tom-2', name: 'Velocity Analysis', theory: false, questions: false }, { id: 'tom-3', name: 'Acceleration Analysis', theory: false, questions: false }, { id: 'tom-4', name: 'Gear', theory: false, questions: false }, { id: 'tom-5', name: 'Gear Train', theory: false, questions: false }, { id: 'tom-6', name: 'Analysis of Single Slider Crank Mechanism', theory: false, questions: false }, { id: 'tom-7', name: 'Flywheel', theory: false, questions: false }, { id: 'tom-8', name: 'Balancing', theory: false, questions: false }, { id: 'tom-9', name: 'Vibration', theory: false, questions: false }, { id: 'tom-10', name: 'Gyroscopic Couple', theory: false, questions: false }, { id: 'tom-11', name: 'Cam and Follower', theory: false, questions: false }, { id: 'tom-12', name: 'Governor', theory: false, questions: false }] },
+            { id: 'verbal', name: 'Verbal Aptitude', chapters: [{ id: 'verb-1', name: 'Parts of Speech', theory: false, questions: false }, { id: 'verb-2', name: 'Non-Grammar', theory: false, questions: false }, { id: 'verb-3', name: 'Vocabulary', theory: false, questions: false }, { id: 'verb-4', name: 'Reading Comprehension', theory: false, questions: false }] }
+        ];
+
+        // --- ICONS (SVG Strings) ---
+        const icons = {
+            zap: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-12 h-12 animate-pulse"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 9.81h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14.19H4z"/></svg>`,
+            shield: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 text-cyan-400"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`,
+            database: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>`,
+            clock: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+            target: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-fuchsia-500"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+            chevronUp: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="m18 15-6-6-6 6"/></svg>`,
+            chevronDown: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="m6 9 6 6 6-6"/></svg>`,
+            checkSquare: (colorClass) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 ${colorClass}"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>`,
+            square: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-transparent"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`
+        };
+
+        // --- STATE ---
+        const state = {
+            user: null,
+            subjects: INITIAL_SUBJECTS,
+            expanded: {},
+            loading: true,
+            countdown: { d: 0, h: 0, m: 0, s: 0 }
+        };
+
+        // Target Date: Approx First Weekend of Feb 2027
+        const GATE_DATE = new Date('2027-02-06T09:30:00+05:30').getTime();
+
+        // --- FIREBASE SETUP ---
+        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        const firebaseConfig = JSON.parse(firebaseConfigStr);
+        let app, auth, db;
+        let unsubscribeFirestore = null;
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gate-2027-tracker';
+
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (e) {
+            console.error("Firebase init error", e);
+        }
+
+        // --- INIT APP ---
+        function init() {
+            render(); // Render loading
+            
+            const initAuth = async () => {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (err) {
+                    console.error("Auth Error:", err);
+                }
+            };
+            
+            if (auth) {
+                initAuth();
+                onAuthStateChanged(auth, (usr) => {
+                    state.user = usr;
+                    if (!usr) {
+                        state.loading = false;
+                        render();
+                    } else {
+                        setupFirestoreListener();
+                    }
+                });
+            } else {
+                // Fallback if no firebase
+                state.loading = false;
+                render();
+            }
+
+            // Start Countdown Timer
+            setInterval(() => {
+                const now = new Date().getTime();
+                const distance = GATE_DATE - now;
+
+                if (distance < 0) return;
+
+                state.countdown = {
+                    d: Math.floor(distance / (1000 * 60 * 60 * 24)),
+                    h: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+                    m: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+                    s: Math.floor((distance % (1000 * 60)) / 1000)
+                };
+                updateCountdownDOM();
+            }, 1000);
+
+            // Set up Event Listeners
+            setupEventListeners();
+        }
+
+        function setupFirestoreListener() {
+            if (!state.user || !db) return;
+            if (unsubscribeFirestore) unsubscribeFirestore();
+
+            const docRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'gateData', 'progress');
+            unsubscribeFirestore = onSnapshot(docRef, (snap) => {
+                if (snap.exists()) {
+                    state.subjects = snap.data().subjects || INITIAL_SUBJECTS;
+                } else {
+                    setDoc(docRef, { subjects: INITIAL_SUBJECTS });
+                }
+                state.loading = false;
+                render();
+            }, (error) => {
+                console.error("Firestore Error:", error);
+                state.loading = false;
+                render();
+            });
+        }
+
+        async function saveToCloud() {
+            if (!state.user || !db) return;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'gateData', 'progress');
+                await setDoc(docRef, { subjects: state.subjects }, { merge: true });
+            } catch (e) {
+                console.error("Save error", e);
+            }
+        }
+
+        // --- HANDLERS ---
+        window.toggleExpand = function(subjectId) {
+            state.expanded[subjectId] = !state.expanded[subjectId];
+            render(); // Fast enough to re-render the whole UI
+        };
+
+        window.markSubjectComplete = function(subjectId, isComplete) {
+            state.subjects = state.subjects.map(sub => {
+                if (sub.id !== subjectId) return sub;
+                return {
+                    ...sub,
+                    chapters: sub.chapters.map(chap => ({
+                        ...chap,
+                        theory: isComplete,
+                        questions: isComplete
+                    }))
+                };
+            });
+            render();
+            saveToCloud();
+        };
+
+        window.toggleChapter = function(subjectId, chapterId, type) {
+            state.subjects = state.subjects.map(sub => {
+                if (sub.id !== subjectId) return sub;
+                return {
+                    ...sub,
+                    chapters: sub.chapters.map(chap => {
+                        if (chap.id !== chapterId) return chap;
+                        return { ...chap, [type]: !chap[type] };
+                    })
+                };
+            });
+            render();
+            saveToCloud();
+        };
+
+        function setupEventListeners() {
+            // Event delegation on the main app container
+            document.getElementById('app').addEventListener('click', (e) => {
+                // 1. Mark Complete Button (Intercept before expand)
+                const markBtn = e.target.closest('[data-action="markComplete"]');
+                if (markBtn) {
+                    const subjectId = markBtn.getAttribute('data-subject-id');
+                    const isComplete = markBtn.getAttribute('data-is-complete') === 'true';
+                    window.markSubjectComplete(subjectId, !isComplete);
+                    return; // Stop event processing here
+                }
+
+                // 2. Toggle Expand Area
+                const expandBtn = e.target.closest('[data-action="toggleExpand"]');
+                if (expandBtn) {
+                    const subjectId = expandBtn.getAttribute('data-subject-id');
+                    window.toggleExpand(subjectId);
+                    return;
+                }
+
+                // 3. Toggle Chapter Checkbox
+                const chapterToggle = e.target.closest('[data-action="toggleChapter"]');
+                if (chapterToggle) {
+                    const subjectId = chapterToggle.getAttribute('data-subject-id');
+                    const chapterId = chapterToggle.getAttribute('data-chapter-id');
+                    const type = chapterToggle.getAttribute('data-type');
+                    window.toggleChapter(subjectId, chapterId, type);
+                    return;
+                }
+            });
+        }
+
+        // --- CALCULATIONS ---
+        function calculateSubjectProgress(chapters) {
+            if (chapters.length === 0) return 0;
+            const total = chapters.length * 2;
+            const completed = chapters.reduce((acc, curr) => acc + (curr.theory ? 1 : 0) + (curr.questions ? 1 : 0), 0);
+            return Math.round((completed / total) * 100);
+        }
+
+        function getOverallStats() {
+            let tTasks = 0;
+            let cTasks = 0;
+            state.subjects.forEach(sub => {
+                tTasks += sub.chapters.length * 2;
+                cTasks += sub.chapters.reduce((acc, curr) => acc + (curr.theory ? 1 : 0) + (curr.questions ? 1 : 0), 0);
+            });
+            return {
+                overallProgress: tTasks === 0 ? 0 : Math.round((cTasks / tTasks) * 100),
+                totalTasks: tTasks,
+                completedTasks: cTasks
+            };
+        }
+
+        // --- RENDER FUNCTIONS ---
+        function renderProgressBar(progress, height = "h-2", colorClass = "bg-cyan-500", glowClass = "shadow-[0_0_15px_#06b6d4]") {
+            return `
+                <div class="w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700/50 ${height}">
+                    <div class="${height} rounded-full transition-all duration-700 ease-out ${colorClass} ${glowClass}"
+                         style="width: ${progress}%"></div>
+                </div>
+            `;
+        }
+
+        function renderCheckbox(checked, label, type, subjectId, chapterId) {
+            const isTheory = type === 'theory';
+            const colorClass = isTheory ? 'text-cyan-400' : 'text-fuchsia-400';
+            const bgCheckedClass = isTheory ? 'bg-cyan-500/20' : 'bg-fuchsia-500/20';
+            const borderClass = checked ? (isTheory ? 'border-cyan-400' : 'border-fuchsia-400') : 'border-slate-600';
+            const glowClass = checked ? (isTheory ? 'shadow-[0_0_8px_#22d3ee]' : 'shadow-[0_0_8px_#e879f9]') : '';
+            const bgBoxClass = checked ? (isTheory ? 'bg-cyan-900/50' : 'bg-fuchsia-900/50') : 'bg-slate-900';
+            const wrapperHoverClass = checked ? bgCheckedClass : 'hover:bg-slate-800/50';
+            const textHoverClass = checked ? colorClass : 'text-slate-400 group-hover:text-slate-300';
+
+            const iconSvg = checked ? icons.checkSquare(colorClass) : icons.square;
+
+            return `
+                <div data-action="toggleChapter" data-subject-id="${subjectId}" data-chapter-id="${chapterId}" data-type="${type}"
+                     class="flex items-center gap-2 cursor-pointer group p-1.5 rounded-md transition-colors ${wrapperHoverClass}">
+                    <div class="relative flex items-center justify-center w-5 h-5 rounded transition-all duration-300 border ${borderClass} ${glowClass} ${bgBoxClass}">
+                        ${iconSvg}
+                    </div>
+                    <span class="text-sm font-medium tracking-wide transition-colors ${textHoverClass}">
+                        ${label}
+                    </span>
+                </div>
+            `;
+        }
+
+        function updateCountdownDOM() {
+            const cdDay = document.getElementById('cd-day');
+            if (cdDay) {
+                cdDay.innerText = state.countdown.d.toString().padStart(2, '0');
+                document.getElementById('cd-hrs').innerText = state.countdown.h.toString().padStart(2, '0');
+                document.getElementById('cd-min').innerText = state.countdown.m.toString().padStart(2, '0');
+                document.getElementById('cd-sec').innerText = state.countdown.s.toString().padStart(2, '0');
+            }
+        }
+
+        function render() {
+            const appDiv = document.getElementById('app');
+
+            if (state.loading) {
+                appDiv.innerHTML = `
+                    <div class="min-h-screen bg-slate-950 flex items-center justify-center font-sans text-cyan-400">
+                        <div class="flex flex-col items-center gap-4">
+                            ${icons.zap}
+                            <p class="tracking-widest uppercase text-sm">Initializing Neural Uplink...</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const stats = getOverallStats();
+            const overallColorClass = stats.overallProgress > 75 ? "bg-emerald-500" : stats.overallProgress > 40 ? "bg-cyan-500" : "bg-fuchsia-500";
+            const overallGlowClass = stats.overallProgress > 75 ? "shadow-[0_0_15px_#10b981]" : stats.overallProgress > 40 ? "shadow-[0_0_15px_#06b6d4]" : "shadow-[0_0_15px_#d946ef]";
+
+            let subjectsHTML = '';
+            
+            state.subjects.forEach(subject => {
+                const isExpanded = state.expanded[subject.id];
+                const progress = calculateSubjectProgress(subject.chapters);
+                const isComplete = progress === 100;
+                
+                const containerBorder = isExpanded ? 'border-cyan-800/60 shadow-[0_4px_20px_rgba(6,182,212,0.05)]' : 'border-slate-800/60 hover:border-slate-700';
+                const chevronIcon = isExpanded ? icons.chevronUp : icons.chevronDown;
+                const chevronBg = isComplete ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-cyan-500 group-hover:bg-slate-700 group-hover:text-cyan-400';
+                const titleColor = isComplete ? 'text-emerald-400' : 'text-slate-200 group-hover:text-white';
+                const pgColorClass = isComplete ? "bg-emerald-500" : "bg-cyan-500";
+                const pgGlowClass = isComplete ? "shadow-[0_0_8px_#10b981]" : "shadow-[0_0_8px_#06b6d4]";
+                const pgGlowClassMobile = isComplete ? "shadow-[0_0_5px_#10b981]" : "shadow-[0_0_5px_#06b6d4]";
+
+                const btnClasses = isComplete 
+                    ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20' 
+                    : 'border-slate-700 text-slate-400 hover:border-cyan-500/50 hover:text-cyan-400 hover:bg-cyan-900/20';
+                const btnText = isComplete ? 'Override: Reset' : 'Execute: Max';
+
+                let chaptersHTML = '';
+                if (isExpanded) {
+                    chaptersHTML = `
+                        <div class="border-t border-slate-800/50 bg-slate-950/50 p-4 sm:p-5">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                                ${subject.chapters.map(chapter => `
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/40 hover:border-slate-700 transition-colors gap-3">
+                                        <span class="text-sm text-slate-300 font-medium truncate flex-1" title="${chapter.name}">
+                                            ${chapter.name}
+                                        </span>
+                                        <div class="flex items-center gap-4 shrink-0">
+                                            ${renderCheckbox(chapter.theory, 'THY', 'theory', subject.id, chapter.id)}
+                                            <div class="w-px h-5 bg-slate-700"></div>
+                                            ${renderCheckbox(chapter.questions, 'PYQ', 'questions', subject.id, chapter.id)}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                subjectsHTML += `
+                    <div class="bg-slate-900/40 backdrop-blur-sm border rounded-xl overflow-hidden transition-all duration-300 ${containerBorder}">
+                        <div data-action="toggleExpand" data-subject-id="${subject.id}" class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none group">
+                            <div class="flex items-center gap-3 flex-1 min-w-0">
+                                <div class="p-2 rounded-lg transition-colors ${chevronBg}">
+                                    ${chevronIcon}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-bold text-lg truncate transition-colors ${titleColor}">
+                                        ${subject.name}
+                                    </h3>
+                                    <div class="flex items-center gap-3 mt-1.5">
+                                        <div class="w-32 hidden sm:block">
+                                            ${renderProgressBar(progress, "h-1.5", pgColorClass, pgGlowClass)}
+                                        </div>
+                                        <span class="text-xs font-mono text-slate-400">${progress}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end sm:w-auto">
+                                <button data-action="markComplete" data-subject-id="${subject.id}" data-is-complete="${isComplete}"
+                                        class="text-xs font-mono uppercase tracking-wider px-3 py-1.5 rounded border transition-all ${btnClasses}">
+                                    ${btnText}
+                                </button>
+                            </div>
+                            <div class="sm:hidden w-full mt-2">
+                                ${renderProgressBar(progress, "h-1", pgColorClass, pgGlowClassMobile)}
+                            </div>
+                        </div>
+                        ${chaptersHTML}
+                    </div>
+                `;
+            });
+
+            const userIdDisplay = state.user ? `<span class="ml-2 text-xs text-slate-600">ID: ${state.user.uid.slice(0, 8)}</span>` : '';
+
+            appDiv.innerHTML = `
+                <!-- Cyberpunk Grid Background Overlay -->
+                <div class="fixed inset-0 pointer-events-none opacity-[0.03] z-0" 
+                     style="background-image: linear-gradient(to right, #06b6d4 1px, transparent 1px), linear-gradient(to bottom, #06b6d4 1px, transparent 1px); background-size: 40px 40px;"></div>
+                
+                <!-- Glow Orbs -->
+                <div class="fixed top-[-10%] left-[-10%] w-96 h-96 bg-cyan-600/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
+                <div class="fixed bottom-[-10%] right-[-10%] w-96 h-96 bg-fuchsia-600/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
+
+                <div class="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 relative z-10">
+                    <!-- HEADER -->
+                    <header class="mb-10 mt-4 flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div class="text-center md:text-left">
+                            <h1 class="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)] mb-2 uppercase flex items-center gap-3 justify-center md:justify-start">
+                                ${icons.shield} GATE 2027
+                            </h1>
+                            <p class="text-slate-400 font-mono text-sm tracking-widest flex items-center justify-center md:justify-start gap-2">
+                                ${icons.database} OPERATION AIR-100
+                                ${userIdDisplay}
+                            </p>
+                        </div>
+
+                        <!-- Countdown Widget -->
+                        <div class="bg-slate-900/80 backdrop-blur-md border border-cyan-900/50 rounded-xl p-4 flex flex-col items-center shadow-[0_0_20px_rgba(6,182,212,0.1)]">
+                            <div class="flex items-center gap-2 text-cyan-500 mb-2">
+                                ${icons.clock}
+                                <span class="text-xs uppercase tracking-[0.2em] font-bold">REALITY CHECK IN</span>
+                            </div>
+                            <div class="flex gap-4 font-mono">
+                                <div class="flex flex-col items-center">
+                                    <div id="cd-day" class="bg-slate-950 border border-slate-800 text-cyan-300 w-12 h-12 flex items-center justify-center rounded-lg text-xl font-bold shadow-inner">${state.countdown.d.toString().padStart(2, '0')}</div>
+                                    <span class="text-[10px] text-slate-500 mt-1">DAY</span>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div id="cd-hrs" class="bg-slate-950 border border-slate-800 text-cyan-300 w-12 h-12 flex items-center justify-center rounded-lg text-xl font-bold shadow-inner">${state.countdown.h.toString().padStart(2, '0')}</div>
+                                    <span class="text-[10px] text-slate-500 mt-1">HRS</span>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div id="cd-min" class="bg-slate-950 border border-slate-800 text-cyan-300 w-12 h-12 flex items-center justify-center rounded-lg text-xl font-bold shadow-inner">${state.countdown.m.toString().padStart(2, '0')}</div>
+                                    <span class="text-[10px] text-slate-500 mt-1">MIN</span>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div id="cd-sec" class="bg-slate-950 border border-slate-800 text-cyan-300 w-12 h-12 flex items-center justify-center rounded-lg text-xl font-bold shadow-inner">${state.countdown.s.toString().padStart(2, '0')}</div>
+                                    <span class="text-[10px] text-slate-500 mt-1">SEC</span>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <!-- OVERALL PROGRESS -->
+                    <section class="mb-10 bg-slate-900/60 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-fuchsia-500"></div>
+                        
+                        <div class="flex justify-between items-end mb-4">
+                            <div>
+                                <h2 class="text-lg uppercase tracking-widest text-slate-300 flex items-center gap-2 mb-1">
+                                    ${icons.target} PREPARATION STATUS
+                                </h2>
+                                <p class="text-slate-500 text-sm font-mono">${stats.completedTasks} / ${stats.totalTasks} Targets Eliminated</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-500">
+                                    ${stats.overallProgress}%
+                                </span>
+                            </div>
+                        </div>
+                        
+                        ${renderProgressBar(stats.overallProgress, "h-3", overallColorClass, overallGlowClass)}
+                    </section>
+
+                    <!-- SUBJECTS LIST -->
+                    <div class="space-y-4 pb-20">
+                        ${subjectsHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Boot
+        init();
+
+    </script>
+</body>
+</html>
