@@ -27,9 +27,17 @@
     <div id="app"></div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+        // --- SUPABASE CONFIGURATION ---
+        // TODO: REPLACE THESE WITH YOUR ACTUAL SUPABASE URL AND ANON KEY
+        const SUPABASE_URL = 'https://adoeuifogfjmebqvjhgj.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_SXXFxFH31LhaQBOqmJNisw_O7VvjB9E';
+
+        let supabase = null;
+        if (SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE') {
+            supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
 
         // --- INITIAL DATA ---
         const INITIAL_SUBJECTS = [
@@ -66,7 +74,6 @@
 
         // --- STATE ---
         const state = {
-            firebaseUser: null, // Underlying platform auth
             customUser: null,   // Holds the authenticated custom username
             view: 'loading',    // 'loading' | 'auth' | 'app'
             authMode: 'login',  // 'login' | 'register'
@@ -79,54 +86,14 @@
         // Target Date: Approx First Weekend of Feb 2027
         const GATE_DATE = new Date('2027-02-06T09:30:00+05:30').getTime();
 
-        // --- FIREBASE SETUP ---
-        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-        const firebaseConfig = JSON.parse(firebaseConfigStr);
-        let app, auth, db;
-        let unsubscribeFirestore = null;
-        
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gate-2027-tracker';
-
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } catch (e) {
-            console.error("Firebase init error", e);
-        }
-
         // --- INIT APP ---
         function init() {
-            render(); // Render initial loading UI
+            render(); // Render initial UI
             
-            const initAuth = async () => {
-                try {
-                    // Must authenticate with environment to gain Firestore read/write capabilities
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (err) {
-                    console.error("Auth Error:", err);
-                    state.authError = "System Initialization Failed";
-                    render();
-                }
-            };
-            
-            if (auth) {
-                initAuth();
-                onAuthStateChanged(auth, (usr) => {
-                    state.firebaseUser = usr;
-                    if (usr) {
-                        // Core platform auth successful, show our custom login screen
-                        state.view = 'auth';
-                        render();
-                    } else {
-                        state.view = 'loading';
-                        render();
-                    }
-                });
+            if (!supabase) {
+                state.view = 'auth';
+                state.authError = "SYSTEM HALTED: Supabase URL and Key missing. Check source code.";
+                render();
             } else {
                 state.view = 'auth';
                 render();
@@ -162,6 +129,13 @@
 
         window.submitAuth = async function(e) {
             e.preventDefault();
+            
+            if (!supabase) {
+                state.authError = "Database not connected. Add Supabase keys to code.";
+                render();
+                return;
+            }
+
             const usernameInput = document.getElementById('auth-username').value.trim().toLowerCase();
             const pinInput = document.getElementById('auth-pin').value;
 
@@ -174,82 +148,111 @@
                 render(); return;
             }
 
+            let nameInput = '';
+            let cityInput = '';
+
+            if (state.authMode === 'register') {
+                nameInput = document.getElementById('auth-name').value.trim();
+                cityInput = document.getElementById('auth-city').value.trim();
+                const confirmPinInput = document.getElementById('auth-confirm-pin').value;
+
+                if (!nameInput || !cityInput) {
+                    state.authError = "Name and City are required for registration.";
+                    render(); return;
+                }
+                if (pinInput !== confirmPinInput) {
+                    state.authError = "PINs do not match. Verify and try again.";
+                    render(); return;
+                }
+            }
+
             state.view = 'loading';
             render();
 
             try {
-                // Using public data pool to store custom account mapping as requested
-                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'gateAccounts', usernameInput);
-                const userSnap = await getDoc(userDocRef);
-
                 if (state.authMode === 'register') {
-                    if (userSnap.exists()) {
+                    // Check if user exists
+                    const { data: existingUser, error: checkError } = await supabase
+                        .from('gate_accounts')
+                        .select('username')
+                        .eq('username', usernameInput)
+                        .maybeSingle();
+
+                    if (checkError) throw checkError;
+
+                    if (existingUser) {
                         state.authError = "Username is already claimed by another operative.";
                         state.view = 'auth';
                     } else {
-                        // Create new profile with fresh subjects
-                        await setDoc(userDocRef, { pin: pinInput, subjects: INITIAL_SUBJECTS });
-                        state.customUser = { username: usernameInput };
+                        // Create new profile
+                        const { error: insertError } = await supabase
+                            .from('gate_accounts')
+                            .insert([{ 
+                                username: usernameInput,
+                                pin: pinInput, 
+                                name: nameInput,
+                                city: cityInput,
+                                subjects: INITIAL_SUBJECTS 
+                            }]);
+                            
+                        if (insertError) throw insertError;
+
+                        state.customUser = { username: usernameInput, name: nameInput, city: cityInput };
                         state.subjects = JSON.parse(JSON.stringify(INITIAL_SUBJECTS)); // deep copy clone
                         state.view = 'app';
-                        setupFirestoreListener();
                     }
-                } else { // Login
-                    if (!userSnap.exists()) {
+                } else { 
+                    // Login
+                    const { data, error } = await supabase
+                        .from('gate_accounts')
+                        .select('*')
+                        .eq('username', usernameInput)
+                        .maybeSingle();
+
+                    if (error) throw error;
+
+                    if (!data) {
                         state.authError = "Operative ID not found.";
                         state.view = 'auth';
                     } else {
-                        const data = userSnap.data();
                         if (data.pin !== pinInput) {
                             state.authError = "Access Denied: Incorrect PIN.";
                             state.view = 'auth';
                         } else {
-                            state.customUser = { username: usernameInput };
-                            // Load existing data or fallback to defaults
+                            state.customUser = { 
+                                username: usernameInput, 
+                                name: data.name || 'Unknown', 
+                                city: data.city || 'Unknown' 
+                            };
                             state.subjects = data.subjects || JSON.parse(JSON.stringify(INITIAL_SUBJECTS));
                             state.view = 'app';
-                            setupFirestoreListener();
                         }
                     }
                 }
             } catch (err) {
-                console.error("Firestore error:", err);
-                state.authError = "Network interface offline. Try again.";
+                console.error("Supabase error:", err);
+                state.authError = "Network interface offline: " + err.message;
                 state.view = 'auth';
             }
             render();
         }
 
         window.logout = function() {
-            if (unsubscribeFirestore) unsubscribeFirestore();
             state.customUser = null;
-            state.subjects = INITIAL_SUBJECTS; // Flush local data to avoid ghost data
+            state.subjects = INITIAL_SUBJECTS; 
             state.authError = '';
             state.authMode = 'login';
             state.view = 'auth';
             render();
         }
 
-        function setupFirestoreListener() {
-            if (!state.firebaseUser || !state.customUser || !db) return;
-            if (unsubscribeFirestore) unsubscribeFirestore();
-
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'gateAccounts', state.customUser.username);
-            unsubscribeFirestore = onSnapshot(docRef, (snap) => {
-                if (snap.exists() && snap.data().subjects) {
-                    state.subjects = snap.data().subjects;
-                }
-                render();
-            }, (error) => {
-                console.error("Firestore Listen Error:", error);
-            });
-        }
-
         async function saveToCloud() {
-            if (!state.firebaseUser || !state.customUser || !db) return;
+            if (!supabase || !state.customUser) return;
             try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'gateAccounts', state.customUser.username);
-                await setDoc(docRef, { subjects: state.subjects }, { merge: true });
+                await supabase
+                    .from('gate_accounts')
+                    .update({ subjects: state.subjects })
+                    .eq('username', state.customUser.username);
             } catch (e) {
                 console.error("Save error", e);
             }
@@ -428,24 +431,48 @@
                                 </p>
                             </div>
 
-                            <form onsubmit="submitAuth(event)" class="space-y-6">
+                            <form onsubmit="submitAuth(event)" class="space-y-4">
                                 <div>
-                                    <label class="block text-cyan-500 font-mono text-xs tracking-widest mb-2 uppercase">Operative ID (Username)</label>
+                                    <label class="block text-cyan-500 font-mono text-xs tracking-widest mb-1 uppercase">Operative ID (Username)</label>
                                     <input type="text" id="auth-username" required pattern="[a-zA-Z0-9_]{3,15}"
-                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-slate-700"
+                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-slate-700"
                                         placeholder="e.g. shadow_01">
                                 </div>
 
+                                ${state.authMode === 'register' ? `
                                 <div>
-                                    <label class="block text-fuchsia-500 font-mono text-xs tracking-widest mb-2 uppercase">Access Code (6-Digit PIN)</label>
-                                    <input type="password" id="auth-pin" required pattern="[0-9]{6}" maxlength="6"
-                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 font-mono tracking-[0.5em] focus:outline-none focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 transition-all placeholder-slate-700"
+                                    <label class="block text-cyan-500 font-mono text-xs tracking-widest mb-1 uppercase">Real Name</label>
+                                    <input type="text" id="auth-name" required
+                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-slate-700"
+                                        placeholder="John Doe">
+                                </div>
+                                <div>
+                                    <label class="block text-cyan-500 font-mono text-xs tracking-widest mb-1 uppercase">Operating City</label>
+                                    <input type="text" id="auth-city" required
+                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-slate-700"
+                                        placeholder="Neo Tokyo">
+                                </div>
+                                ` : ''}
+
+                                <div>
+                                    <label class="block text-fuchsia-500 font-mono text-xs tracking-widest mb-1 uppercase">Access Code (6-Digit PIN)</label>
+                                    <input type="password" id="auth-pin" required pattern="[0-9]{6}" maxlength="6" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono tracking-[0.5em] focus:outline-none focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 transition-all placeholder-slate-700"
                                         placeholder="••••••">
                                 </div>
 
+                                ${state.authMode === 'register' ? `
+                                <div>
+                                    <label class="block text-fuchsia-500 font-mono text-xs tracking-widest mb-1 uppercase">Confirm Access Code</label>
+                                    <input type="password" id="auth-confirm-pin" required pattern="[0-9]{6}" maxlength="6" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono tracking-[0.5em] focus:outline-none focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 transition-all placeholder-slate-700"
+                                        placeholder="••••••">
+                                </div>
+                                ` : ''}
+
                                 ${state.authError ? `<div class="text-red-400 text-sm font-mono text-center bg-red-900/20 border border-red-900/50 p-2 rounded shadow-inner">${state.authError}</div>` : ''}
 
-                                <button type="submit" class="w-full bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white font-bold py-3 rounded-lg uppercase tracking-widest text-sm transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.6)]">
+                                <button type="submit" class="w-full bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white font-bold py-3 mt-2 rounded-lg uppercase tracking-widest text-sm transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.6)]">
                                     ${state.authMode === 'login' ? 'Initiate Link' : 'Register ID'}
                                 </button>
                             </form>
@@ -542,13 +569,18 @@
             });
 
             const userDisplay = state.customUser 
-                ? `<div class="flex items-center gap-2">
-                     <span class="text-cyan-400 font-bold uppercase border border-cyan-800 bg-cyan-950/50 px-2 py-0.5 rounded shadow-[0_0_5px_rgba(6,182,212,0.3)]">
-                        @${state.customUser.username}
+                ? `<div class="flex flex-col items-center md:items-start gap-1">
+                     <div class="flex items-center gap-2">
+                         <span class="text-cyan-400 font-bold uppercase border border-cyan-800 bg-cyan-950/50 px-2 py-0.5 rounded shadow-[0_0_5px_rgba(6,182,212,0.3)]">
+                            @${state.customUser.username}
+                         </span>
+                         <button onclick="logout()" class="text-slate-500 hover:text-fuchsia-400 transition-colors p-1" title="Disconnect Session">
+                             ${icons.logout}
+                         </button>
+                     </div>
+                     <span class="text-xs text-slate-500 font-mono tracking-wider">
+                         OPERATIVE: ${state.customUser.name.toUpperCase()} // LOC: ${state.customUser.city.toUpperCase()}
                      </span>
-                     <button onclick="logout()" class="text-slate-500 hover:text-fuchsia-400 transition-colors p-1" title="Disconnect Session">
-                         ${icons.logout}
-                     </button>
                    </div>` 
                 : '';
 
