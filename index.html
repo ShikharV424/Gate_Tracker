@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GATE 2027 CyberTracker</title>
+    <title>GATE 2027 CyberTracker with Notes Repository</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Flatpickr for Custom Themed Date Picker -->
@@ -11,9 +11,10 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
     <style>
-        /* Custom scrollbar for webkit to match the theme */
+        /* Custom scrollbar for webkit to match cyber theme */
         ::-webkit-scrollbar {
             width: 8px;
+            height: 8px;
         }
         ::-webkit-scrollbar-track {
             background: #020617; 
@@ -28,14 +29,14 @@
 
         /* --- Flatpickr Cyberpunk Theme --- */
         .flatpickr-calendar {
-            background: rgba(15, 23, 42, 0.98) !important; /* slate-900 */
-            border: 1px solid rgba(217, 70, 239, 0.4) !important; /* fuchsia-500/40 */
+            background: rgba(15, 23, 42, 0.98) !important;
+            border: 1px solid rgba(217, 70, 239, 0.4) !important;
             box-shadow: 0 0 20px rgba(217, 70, 239, 0.15) !important;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
             color: #e2e8f0 !important;
         }
         .flatpickr-months .flatpickr-month {
-            color: #22d3ee !important; /* cyan-400 */
+            color: #22d3ee !important;
             fill: #22d3ee !important;
         }
         .flatpickr-months .flatpickr-prev-month, .flatpickr-months .flatpickr-next-month {
@@ -58,13 +59,13 @@
             border-color: rgba(34, 211, 238, 0.5) !important;
         }
         .flatpickr-day.selected, .flatpickr-day.selected:hover {
-            background: rgba(217, 70, 239, 0.2) !important; /* fuchsia */
+            background: rgba(217, 70, 239, 0.2) !important;
             border-color: #d946ef !important;
             color: #fff !important;
             box-shadow: 0 0 10px rgba(217, 70, 239, 0.5) !important;
         }
         .flatpickr-day.today {
-            border-color: #22d3ee !important; /* cyan today marker */
+            border-color: #22d3ee !important;
         }
         .flatpickr-time input, .flatpickr-time .flatpickr-time-separator, .flatpickr-time .flatpickr-am-pm {
             color: #e2e8f0 !important;
@@ -73,7 +74,7 @@
             background: rgba(34, 211, 238, 0.1) !important;
         }
 
-        /* --- Custom Confirm Button for Flatpickr --- */
+        /* Custom Confirm Button for Flatpickr */
         .cyber-confirm-btn-container {
             padding: 10px;
             border-top: 1px solid rgba(217, 70, 239, 0.4);
@@ -105,14 +106,12 @@
 </head>
 <body class="bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500/30 overflow-x-hidden relative">
     
-  
     <div id="app"></div>
 
     <script type="module">
         import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
         // --- SUPABASE CONFIGURATION ---
-        // TODO: REPLACE THESE WITH YOUR ACTUAL SUPABASE URL AND ANON KEY
         const SUPABASE_URL = 'https://adoeuifogfjmebqvjhgj.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_SXXFxFH31LhaQBOqmJNisw_O7VvjB9E';
 
@@ -121,23 +120,26 @@
             supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         }
 
+        // Dedicated Admin Username constant
+        const ADMIN_USERNAME = 'Admin_Operator';
+
         // --- INITIAL DATA ---
         const INITIAL_SUBJECTS = [
-            { id: 'applied-thermo', name: 'Applied Thermodynamics', chapters: [{ id: 'ath-1', name: 'VCRS', theory: false, questions: false }, { id: 'ath-2', name: 'Analysis of VCRS', theory: false, questions: false }, { id: 'ath-3', name: 'Vapour Absorption System', theory: false, questions: false }, { id: 'ath-4', name: 'Gas Refrigeration', theory: false, questions: false }, { id: 'ath-5', name: 'Refrigerants', theory: false, questions: false }, { id: 'ath-6', name: 'Psychrometry Basics', theory: false, questions: false }, { id: 'ath-7', name: 'Psychrometry', theory: false, questions: false }, { id: 'ath-8', name: 'Thermodynamic Cycles', theory: false, questions: false }, { id: 'ath-9', name: 'Otto Cycle Analysis', theory: false, questions: false }, { id: 'ath-10', name: 'Diesel Cycle Analysis', theory: false, questions: false }, { id: 'ath-11', name: 'Dual Cycle Analysis', theory: false, questions: false }, { id: 'ath-12', name: 'MEP & Efficiencies', theory: false, questions: false }, { id: 'ath-13', name: 'Engine Tests and Analysis', theory: false, questions: false }, { id: 'ath-14', name: 'Brayton Cycle', theory: false, questions: false }, { id: 'ath-15', name: 'Brayton Cycle Analysis', theory: false, questions: false }, { id: 'ath-16', name: 'Reheat Cycle', theory: false, questions: false }, { id: 'ath-17', name: 'Regeneration', theory: false, questions: false }] },
-            { id: 'basic-thermo', name: 'Basic Thermodynamics', chapters: [{ id: 'bth-1', name: 'Basic Concept', theory: false, questions: false }, { id: 'bth-2', name: 'Work and Heat', theory: false, questions: false }, { id: 'bth-3', name: 'First law of Thermodynamics', theory: false, questions: false }, { id: 'bth-4', name: 'Second law of Thermodynamics', theory: false, questions: false }, { id: 'bth-5', name: 'Entropy', theory: false, questions: false }, { id: 'bth-6', name: 'Exergy', theory: false, questions: false }, { id: 'bth-7', name: 'Properties of Pure Substance', theory: false, questions: false }, { id: 'bth-8', name: 'Thermodynamic Relation', theory: false, questions: false }] },
-            { id: 'math', name: 'Engineering Mathematics', chapters: [{ id: 'math-1', name: 'Linear Algebra', theory: false, questions: false }, { id: 'math-2', name: 'Calculus', theory: false, questions: false }, { id: 'math-3', name: 'Vector Calculus', theory: false, questions: false }, { id: 'math-4', name: 'Differential Equations', theory: false, questions: false }, { id: 'math-5', name: 'Numerical Methods', theory: false, questions: false }, { id: 'math-6', name: 'Laplace Transform and Fourier Series', theory: false, questions: false }, { id: 'math-7', name: 'Complex Analysis', theory: false, questions: false }, { id: 'math-8', name: 'Probability and Statistics', theory: false, questions: false }] },
-            { id: 'mechanics', name: 'Engineering Mechanics', chapters: [{ id: 'em-1', name: 'Basic Concepts', theory: false, questions: false }, { id: 'em-2', name: 'Equilibrium', theory: false, questions: false }, { id: 'em-3', name: 'Friction & Its Applications', theory: false, questions: false }, { id: 'em-4', name: 'Truss & Frames', theory: false, questions: false }, { id: 'em-5', name: 'Centroid and Moment of Inertia', theory: false, questions: false }, { id: 'em-6', name: 'Kinematics of Particles', theory: false, questions: false }, { id: 'em-7', name: 'Kinematics of Rigid Bodies', theory: false, questions: false }, { id: 'em-8', name: 'Kinetics of Particles', theory: false, questions: false }, { id: 'em-9', name: 'Kinetics of Rigid Bodies', theory: false, questions: false }, { id: 'em-10', name: "Lagrange's Equation of Motion", theory: false, questions: false }] },
-            { id: 'fmm', name: 'Fluid Mechanics and Machinery', chapters: [{ id: 'fmm-1', name: 'Fluid and its Properties', theory: false, questions: false }, { id: 'fmm-2', name: 'Pressure and its Measurement', theory: false, questions: false }, { id: 'fmm-3', name: 'Hydrostatic Forces', theory: false, questions: false }, { id: 'fmm-4', name: 'Buoyancy and Stability', theory: false, questions: false }, { id: 'fmm-5', name: 'Fluid Kinematics', theory: false, questions: false }, { id: 'fmm-6', name: 'Fluid Dynamics', theory: false, questions: false }, { id: 'fmm-7', name: 'Laminar Flow', theory: false, questions: false }, { id: 'fmm-8', name: 'Flow Through Pipes', theory: false, questions: false }, { id: 'fmm-9', name: 'Dimensional Analysis and Modeling', theory: false, questions: false }, { id: 'fmm-10', name: 'Boundary Layer Theory', theory: false, questions: false }, { id: 'fmm-11', name: 'Drag And Lift', theory: false, questions: false }, { id: 'fmm-12', name: 'Turbulent Flow', theory: false, questions: false }, { id: 'fmm-13', name: 'Hydraulic Machinery', theory: false, questions: false }] },
-            { id: 'aptitude', name: 'General Aptitude', chapters: [{ id: 'apt-1', name: 'Quantitative Aptitude', theory: false, questions: false }, { id: 'apt-2', name: 'Analytical Aptitude', theory: false, questions: false }, { id: 'apt-3', name: 'Spatial Aptitude', theory: false, questions: false }] },
-            { id: 'ht', name: 'Heat Transfer', chapters: [{ id: 'ht-1', name: 'Introduction', theory: false, questions: false }, { id: 'ht-2', name: 'Steady Conduction', theory: false, questions: false }, { id: 'ht-3', name: 'Critical Radius of Insulation', theory: false, questions: false }, { id: 'ht-4', name: 'Fins', theory: false, questions: false }, { id: 'ht-5', name: 'Unsteady Conduction Heat Transfer', theory: false, questions: false }, { id: 'ht-6', name: 'Convection Heat Transfer', theory: false, questions: false }, { id: 'ht-7', name: 'Radiation Heat Transfer', theory: false, questions: false }, { id: 'ht-8', name: 'Boiling and Condensation', theory: false, questions: false }, { id: 'ht-9', name: 'Heat Exchanger', theory: false, questions: false }] },
-            { id: 'ie', name: 'Industrial Engineering', chapters: [{ id: 'ie-1', name: 'Forecasting', theory: false, questions: false }, { id: 'ie-2', name: 'Break Even Analysis', theory: false, questions: false }, { id: 'ie-3', name: 'Production Planning', theory: false, questions: false }, { id: 'ie-4', name: 'Linear Programming', theory: false, questions: false }, { id: 'ie-5', name: 'Transportation', theory: false, questions: false }, { id: 'ie-6', name: 'Assignment & Plant Layout', theory: false, questions: false }, { id: 'ie-7', name: 'PERT & CPM', theory: false, questions: false }, { id: 'ie-8', name: 'Inventory Control', theory: false, questions: false }, { id: 'ie-9', name: 'Queuing Theory', theory: false, questions: false }, { id: 'ie-10', name: 'Work Study', theory: false, questions: false }, { id: 'ie-11', name: 'Control Chart', theory: false, questions: false }] },
-            { id: 'md', name: 'Machine Design', chapters: [{ id: 'md-1', name: 'Brakes', theory: false, questions: false }, { id: 'md-2', name: 'Clutches', theory: false, questions: false }, { id: 'md-3', name: 'Design Against Static Loads', theory: false, questions: false }, { id: 'md-4', name: 'Design Against Fluctuating Loads', theory: false, questions: false }, { id: 'md-5', name: 'Welded, Riveted and Bolted Joints', theory: false, questions: false }, { id: 'md-6', name: 'Bearings', theory: false, questions: false }, { id: 'md-7', name: 'Gears', theory: false, questions: false }, { id: 'md-8', name: 'Springs', theory: false, questions: false }, { id: 'md-9', name: 'Shafts, Keys and Coupling', theory: false, questions: false }] },
-            { id: 'mfg-1', name: 'Manufacturing Process 1', chapters: [{ id: 'mfg1-1', name: 'Metal Forming', theory: false, questions: false }, { id: 'mfg1-2', name: 'Additional Topics', theory: false, questions: false }, { id: 'mfg1-3', name: 'Metrology', theory: false, questions: false }, { id: 'mfg1-4', name: 'Casting', theory: false, questions: false }] },
-            { id: 'mfg-2', name: 'Manufacturing Process 2', chapters: [{ id: 'mfg2-1', name: 'Theory Of Metal Cutting', theory: false, questions: false }, { id: 'mfg2-2', name: 'Tool Life', theory: false, questions: false }, { id: 'mfg2-3', name: 'Non Traditional Machining Method', theory: false, questions: false }, { id: 'mfg2-4', name: 'Welding', theory: false, questions: false }, { id: 'mfg2-5', name: 'NC, CNC', theory: false, questions: false }, { id: 'mfg2-6', name: 'Machine Tool', theory: false, questions: false }, { id: 'mfg2-7', name: 'Additive Manufacturing', theory: false, questions: false }] },
-            { id: 'ms', name: 'Material Science', chapters: [{ id: 'ms-1', name: 'Phase Diagram', theory: false, questions: false }, { id: 'ms-2', name: 'Dislocation Theory', theory: false, questions: false }, { id: 'ms-3', name: 'TTT Diagram', theory: false, questions: false }, { id: 'ms-4', name: 'Heat Treatment', theory: false, questions: false }, { id: 'ms-5', name: 'Crystallography', theory: false, questions: false }, { id: 'ms-6', name: 'Corrosion', theory: false, questions: false }, { id: 'ms-7', name: 'Nanomaterial and Polymer', theory: false, questions: false }, { id: 'ms-8', name: 'Ceramic and Composites', theory: false, questions: false }] },
-            { id: 'som', name: 'Strength of Materials', chapters: [{ id: 'som-1', name: 'Introduction & Properties of Materials', theory: false, questions: false }, { id: 'som-2', name: 'Axially Loaded Members', theory: false, questions: false }, { id: 'som-3', name: 'Torsion in Circular Shafts', theory: false, questions: false }, { id: 'som-4', name: 'Shear Forces and Bending Moments', theory: false, questions: false }, { id: 'som-5', name: 'Bending Stresses in Beams', theory: false, questions: false }, { id: 'som-6', name: 'Shear Stresses in Beams', theory: false, questions: false }, { id: 'som-7', name: 'Deflection of Beams', theory: false, questions: false }, { id: 'som-8', name: 'Energy Methods', theory: false, questions: false }, { id: 'som-9', name: 'Complex Stresses and Strains', theory: false, questions: false }, { id: 'som-10', name: 'Pressure Vessels', theory: false, questions: false }, { id: 'som-11', name: 'Combine Loading', theory: false, questions: false }, { id: 'som-12', name: 'Columns', theory: false, questions: false }] },
-            { id: 'tom', name: 'Theory of Machines', chapters: [{ id: 'tom-1', name: 'Simple Mechanism', theory: false, questions: false }, { id: 'tom-2', name: 'Velocity Analysis', theory: false, questions: false }, { id: 'tom-3', name: 'Acceleration Analysis', theory: false, questions: false }, { id: 'tom-4', name: 'Gear', theory: false, questions: false }, { id: 'tom-5', name: 'Gear Train', theory: false, questions: false }, { id: 'tom-6', name: 'Analysis of Single Slider Crank Mechanism', theory: false, questions: false }, { id: 'tom-7', name: 'Flywheel', theory: false, questions: false }, { id: 'tom-8', name: 'Balancing', theory: false, questions: false }, { id: 'tom-9', name: 'Vibration', theory: false, questions: false }, { id: 'tom-10', name: 'Gyroscopic Couple', theory: false, questions: false }, { id: 'tom-11', name: 'Cam and Follower', theory: false, questions: false }, { id: 'tom-12', name: 'Governor', theory: false, questions: false }] },
-            { id: 'verbal', name: 'Verbal Aptitude', chapters: [{ id: 'verb-1', name: 'Parts of Speech', theory: false, questions: false }, { id: 'verb-2', name: 'Non-Grammar', theory: false, questions: false }, { id: 'verb-3', name: 'Vocabulary', theory: false, questions: false }, { id: 'verb-4', name: 'Reading Comprehension', theory: false, questions: false }] }
+            { id: 'applied-thermo', name: 'Applied Thermodynamics', notes: [], chapters: [{ id: 'ath-1', name: 'VCRS', theory: false, questions: false }, { id: 'ath-2', name: 'Analysis of VCRS', theory: false, questions: false }, { id: 'ath-3', name: 'Vapour Absorption System', theory: false, questions: false }, { id: 'ath-4', name: 'Gas Refrigeration', theory: false, questions: false }, { id: 'ath-5', name: 'Refrigerants', theory: false, questions: false }, { id: 'ath-6', name: 'Psychrometry Basics', theory: false, questions: false }, { id: 'ath-7', name: 'Psychrometry', theory: false, questions: false }, { id: 'ath-8', name: 'Thermodynamic Cycles', theory: false, questions: false }, { id: 'ath-9', name: 'Otto Cycle Analysis', theory: false, questions: false }, { id: 'ath-10', name: 'Diesel Cycle Analysis', theory: false, questions: false }, { id: 'ath-11', name: 'Dual Cycle Analysis', theory: false, questions: false }, { id: 'ath-12', name: 'MEP & Efficiencies', theory: false, questions: false }, { id: 'ath-13', name: 'Engine Tests and Analysis', theory: false, questions: false }, { id: 'ath-14', name: 'Brayton Cycle', theory: false, questions: false }, { id: 'ath-15', name: 'Brayton Cycle Analysis', theory: false, questions: false }, { id: 'ath-16', name: 'Reheat Cycle', theory: false, questions: false }, { id: 'ath-17', name: 'Regeneration', theory: false, questions: false }] },
+            { id: 'basic-thermo', name: 'Basic Thermodynamics', notes: [], chapters: [{ id: 'bth-1', name: 'Basic Concept', theory: false, questions: false }, { id: 'bth-2', name: 'Work and Heat', theory: false, questions: false }, { id: 'bth-3', name: 'First law of Thermodynamics', theory: false, questions: false }, { id: 'bth-4', name: 'Second law of Thermodynamics', theory: false, questions: false }, { id: 'bth-5', name: 'Entropy', theory: false, questions: false }, { id: 'bth-6', name: 'Exergy', theory: false, questions: false }, { id: 'bth-7', name: 'Properties of Pure Substance', theory: false, questions: false }, { id: 'bth-8', name: 'Thermodynamic Relation', theory: false, questions: false }] },
+            { id: 'math', name: 'Engineering Mathematics', notes: [], chapters: [{ id: 'math-1', name: 'Linear Algebra', theory: false, questions: false }, { id: 'math-2', name: 'Calculus', theory: false, questions: false }, { id: 'math-3', name: 'Vector Calculus', theory: false, questions: false }, { id: 'math-4', name: 'Differential Equations', theory: false, questions: false }, { id: 'math-5', name: 'Numerical Methods', theory: false, questions: false }, { id: 'math-6', name: 'Laplace Transform and Fourier Series', theory: false, questions: false }, { id: 'math-7', name: 'Complex Analysis', theory: false, questions: false }, { id: 'math-8', name: 'Probability and Statistics', theory: false, questions: false }] },
+            { id: 'mechanics', name: 'Engineering Mechanics', notes: [], chapters: [{ id: 'em-1', name: 'Basic Concepts', theory: false, questions: false }, { id: 'em-2', name: 'Equilibrium', theory: false, questions: false }, { id: 'em-3', name: 'Friction & Its Applications', theory: false, questions: false }, { id: 'em-4', name: 'Truss & Frames', theory: false, questions: false }, { id: 'em-5', name: 'Centroid and Moment of Inertia', theory: false, questions: false }, { id: 'em-6', name: 'Kinematics of Particles', theory: false, questions: false }, { id: 'em-7', name: 'Kinematics of Rigid Bodies', theory: false, questions: false }, { id: 'em-8', name: 'Kinetics of Particles', theory: false, questions: false }, { id: 'em-9', name: 'Kinetics of Rigid Bodies', theory: false, questions: false }, { id: 'em-10', name: "Lagrange's Equation of Motion", theory: false, questions: false }] },
+            { id: 'fmm', name: 'Fluid Mechanics and Machinery', notes: [], chapters: [{ id: 'fmm-1', name: 'Fluid and its Properties', theory: false, questions: false }, { id: 'fmm-2', name: 'Pressure and its Measurement', theory: false, questions: false }, { id: 'fmm-3', name: 'Hydrostatic Forces', theory: false, questions: false }, { id: 'fmm-4', name: 'Buoyancy and Stability', theory: false, questions: false }, { id: 'fmm-5', name: 'Fluid Kinematics', theory: false, questions: false }, { id: 'fmm-6', name: 'Fluid Dynamics', theory: false, questions: false }, { id: 'fmm-7', name: 'Laminar Flow', theory: false, questions: false }, { id: 'fmm-8', name: 'Flow Through Pipes', theory: false, questions: false }, { id: 'fmm-9', name: 'Dimensional Analysis and Modeling', theory: false, questions: false }, { id: 'fmm-10', name: 'Boundary Layer Theory', theory: false, questions: false }, { id: 'fmm-11', name: 'Drag And Lift', theory: false, questions: false }, { id: 'fmm-12', name: 'Turbulent Flow', theory: false, questions: false }, { id: 'fmm-13', name: 'Hydraulic Machinery', theory: false, questions: false }] },
+            { id: 'aptitude', name: 'General Aptitude', notes: [], chapters: [{ id: 'apt-1', name: 'Quantitative Aptitude', theory: false, questions: false }, { id: 'apt-2', name: 'Analytical Aptitude', theory: false, questions: false }, { id: 'apt-3', name: 'Spatial Aptitude', theory: false, questions: false }] },
+            { id: 'ht', name: 'Heat Transfer', notes: [], chapters: [{ id: 'ht-1', name: 'Introduction', theory: false, questions: false }, { id: 'ht-2', name: 'Steady Conduction', theory: false, questions: false }, { id: 'ht-3', name: 'Critical Radius of Insulation', theory: false, questions: false }, { id: 'ht-4', name: 'Fins', theory: false, questions: false }, { id: 'ht-5', name: 'Unsteady Conduction Heat Transfer', theory: false, questions: false }, { id: 'ht-6', name: 'Convection Heat Transfer', theory: false, questions: false }, { id: 'ht-7', name: 'Radiation Heat Transfer', theory: false, questions: false }, { id: 'ht-8', name: 'Boiling and Condensation', theory: false, questions: false }, { id: 'ht-9', name: 'Heat Exchanger', theory: false, questions: false }] },
+            { id: 'ie', name: 'Industrial Engineering', notes: [], chapters: [{ id: 'ie-1', name: 'Forecasting', theory: false, questions: false }, { id: 'ie-2', name: 'Break Even Analysis', theory: false, questions: false }, { id: 'ie-3', name: 'Production Planning', theory: false, questions: false }, { id: 'ie-4', name: 'Linear Programming', theory: false, questions: false }, { id: 'ie-5', name: 'Transportation', theory: false, questions: false }, { id: 'ie-6', name: 'Assignment & Plant Layout', theory: false, questions: false }, { id: 'ie-7', name: 'PERT & CPM', theory: false, questions: false }, { id: 'ie-8', name: 'Inventory Control', theory: false, questions: false }, { id: 'ie-9', name: 'Queuing Theory', theory: false, questions: false }, { id: 'ie-10', name: 'Work Study', theory: false, questions: false }, { id: 'ie-11', name: 'Control Chart', theory: false, questions: false }] },
+            { id: 'md', name: 'Machine Design', notes: [], chapters: [{ id: 'md-1', name: 'Brakes', theory: false, questions: false }, { id: 'md-2', name: 'Clutches', theory: false, questions: false }, { id: 'md-3', name: 'Design Against Static Loads', theory: false, questions: false }, { id: 'md-4', name: 'Design Against Fluctuating Loads', theory: false, questions: false }, { id: 'md-5', name: 'Welded, Riveted and Bolted Joints', theory: false, questions: false }, { id: 'md-6', name: 'Bearings', theory: false, questions: false }, { id: 'md-7', name: 'Gears', theory: false, questions: false }, { id: 'md-8', name: 'Springs', theory: false, questions: false }, { id: 'md-9', name: 'Shafts, Keys and Coupling', theory: false, questions: false }] },
+            { id: 'mfg-1', name: 'Manufacturing Process 1', notes: [], chapters: [{ id: 'mfg1-1', name: 'Metal Forming', theory: false, questions: false }, { id: 'mfg1-2', name: 'Additional Topics', theory: false, questions: false }, { id: 'mfg1-3', name: 'Metrology', theory: false, questions: false }, { id: 'mfg1-4', name: 'Casting', theory: false, questions: false }] },
+            { id: 'mfg-2', name: 'Manufacturing Process 2', notes: [], chapters: [{ id: 'mfg2-1', name: 'Theory Of Metal Cutting', theory: false, questions: false }, { id: 'mfg2-2', name: 'Tool Life', theory: false, questions: false }, { id: 'mfg2-3', name: 'Non Traditional Machining Method', theory: false, questions: false }, { id: 'mfg2-4', name: 'Welding', theory: false, questions: false }, { id: 'mfg2-5', name: 'NC, CNC', theory: false, questions: false }, { id: 'mfg2-6', name: 'Machine Tool', theory: false, questions: false }, { id: 'mfg2-7', name: 'Additive Manufacturing', theory: false, questions: false }] },
+            { id: 'ms', name: 'Material Science', notes: [], chapters: [{ id: 'ms-1', name: 'Phase Diagram', theory: false, questions: false }, { id: 'ms-2', name: 'Dislocation Theory', theory: false, questions: false }, { id: 'ms-3', name: 'TTT Diagram', theory: false, questions: false }, { id: 'ms-4', name: 'Heat Treatment', theory: false, questions: false }, { id: 'ms-5', name: 'Crystallography', theory: false, questions: false }, { id: 'ms-6', name: 'Corrosion', theory: false, questions: false }, { id: 'ms-7', name: 'Nanomaterial and Polymer', theory: false, questions: false }, { id: 'ms-8', name: 'Ceramic and Composites', theory: false, questions: false }] },
+            { id: 'som', name: 'Strength of Materials', notes: [], chapters: [{ id: 'som-1', name: 'Introduction & Properties of Materials', theory: false, questions: false }, { id: 'som-2', name: 'Axially Loaded Members', theory: false, questions: false }, { id: 'som-3', name: 'Torsion in Circular Shafts', theory: false, questions: false }, { id: 'som-4', name: 'Shear Forces and Bending Moments', theory: false, questions: false }, { id: 'som-5', name: 'Bending Stresses in Beams', theory: false, questions: false }, { id: 'som-6', name: 'Shear Stresses in Beams', theory: false, questions: false }, { id: 'som-7', name: 'Deflection of Beams', theory: false, questions: false }, { id: 'som-8', name: 'Energy Methods', theory: false, questions: false }, { id: 'som-9', name: 'Complex Stresses and Strains', theory: false, questions: false }, { id: 'som-10', name: 'Pressure Vessels', theory: false, questions: false }, { id: 'som-11', name: 'Combine Loading', theory: false, questions: false }, { id: 'som-12', name: 'Columns', theory: false, questions: false }] },
+            { id: 'tom', name: 'Theory of Machines', notes: [], chapters: [{ id: 'tom-1', name: 'Simple Mechanism', theory: false, questions: false }, { id: 'tom-2', name: 'Velocity Analysis', theory: false, questions: false }, { id: 'tom-3', name: 'Acceleration Analysis', theory: false, questions: false }, { id: 'tom-4', name: 'Gear', theory: false, questions: false }, { id: 'tom-5', name: 'Gear Train', theory: false, questions: false }, { id: 'tom-6', name: 'Analysis of Single Slider Crank Mechanism', theory: false, questions: false }, { id: 'tom-7', name: 'Flywheel', theory: false, questions: false }, { id: 'tom-8', name: 'Balancing', theory: false, questions: false }, { id: 'tom-9', name: 'Vibration', theory: false, questions: false }, { id: 'tom-10', name: 'Gyroscopic Couple', theory: false, questions: false }, { id: 'tom-11', name: 'Cam and Follower', theory: false, questions: false }, { id: 'tom-12', name: 'Governor', theory: false, questions: false }] },
+            { id: 'verbal', name: 'Verbal Aptitude', notes: [], chapters: [{ id: 'verb-1', name: 'Parts of Speech', theory: false, questions: false }, { id: 'verb-2', name: 'Non-Grammar', theory: false, questions: false }, { id: 'verb-3', name: 'Vocabulary', theory: false, questions: false }, { id: 'verb-4', name: 'Reading Comprehension', theory: false, questions: false }] }
         ];
 
         // --- ICONS (SVG Strings) ---
@@ -148,27 +150,36 @@
             clock: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
             target: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-fuchsia-500"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
             activity: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-amber-500"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>`,
-            calendar: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`,
             chevronUp: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="m18 15-6-6-6 6"/></svg>`,
             chevronDown: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="m6 9 6 6 6-6"/></svg>`,
             checkSquare: (colorClass) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 ${colorClass}"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>`,
             square: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-transparent"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`,
             logout: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
-            x: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`
+            fileText: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
+            download: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+            upload: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+            trash: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+            eye: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+            x: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
+            alertTriangle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-10 h-10 text-rose-500 mb-2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
         };
 
         // --- STATE ---
         const state = {
             customUser: null,   // Holds the authenticated custom username
+            isAdmin: false,     // True only if logged in as Admin_Operator
             view: 'loading',    // 'loading' | 'auth' | 'app'
             authMode: 'login',  // 'login' | 'register'
             authError: '',
             subjects: INITIAL_SUBJECTS,
             expanded: {},
+            activeNotesSubjectId: null, // Modal active subject for notes
+            activePreviewNote: null,    // Previewing PDF note
+            noteToDelete: null,         // Note currently target for deletion confirmation
             countdown: { d: 0, h: 0, m: 0, s: 0 },
             revisedCountdown: { d: 0, h: 0, m: 0, s: 0 },
-            customTargetDate: null, // Timestamp for revised date
-            showCalendarModal: false
+            customTargetDate: null,
+            uploadingNote: false
         };
 
         // Target Date: Approx First Weekend of Feb 2027
@@ -227,6 +238,90 @@
             setupEventListeners();
         }
 
+        // --- GLOBAL NOTES LOADER ---
+        async function loadGlobalNotes() {
+            let globalNotesMap = {};
+
+            // 1. Try Supabase Cloud Fetch
+            if (supabase) {
+                try {
+                    const { data, error } = await supabase
+                        .from('gate_notes')
+                        .select('*');
+
+                    if (!error && data && data.length > 0) {
+                        data.forEach(item => {
+                            if (!globalNotesMap[item.subject_id]) {
+                                globalNotesMap[item.subject_id] = [];
+                            }
+                            globalNotesMap[item.subject_id].push({
+                                id: item.id,
+                                title: item.title,
+                                description: item.description,
+                                fileUrl: item.file_url,
+                                uploadedAt: item.uploaded_at,
+                                size: item.size || 'PDF'
+                            });
+                        });
+                    }
+                } catch (e) {
+                    console.log("Supabase notes fetch fallback to localStorage:", e);
+                }
+            }
+
+            // 2. Merge local storage backup notes
+            try {
+                const localSavedNotes = localStorage.getItem('gate_global_notes');
+                if (localSavedNotes) {
+                    const parsed = JSON.parse(localSavedNotes);
+                    Object.keys(parsed).forEach(subId => {
+                        if (!globalNotesMap[subId]) {
+                            globalNotesMap[subId] = parsed[subId] || [];
+                        } else {
+                            // Merge without duplicates
+                            const existingIds = new Set(globalNotesMap[subId].map(n => n.id));
+                            (parsed[subId] || []).forEach(note => {
+                                if (!existingIds.has(note.id)) {
+                                    globalNotesMap[subId].push(note);
+                                }
+                            });
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Local notes parse error:", e);
+            }
+
+            // Attach notes map to subjects
+            state.subjects = state.subjects.map(sub => ({
+                ...sub,
+                notes: globalNotesMap[sub.id] || sub.notes || []
+            }));
+        }
+
+        // Save notes globally
+        async function saveNotesState() {
+            const notesMap = {};
+            state.subjects.forEach(sub => {
+                if (sub.notes && sub.notes.length > 0) {
+                    notesMap[sub.id] = sub.notes;
+                }
+            });
+            localStorage.setItem('gate_global_notes', JSON.stringify(notesMap));
+
+            // Sync Admin Notes to Supabase
+            if (supabase && state.isAdmin) {
+                try {
+                    await supabase
+                        .from('gate_accounts')
+                        .update({ subjects: state.subjects })
+                        .eq('username', ADMIN_USERNAME);
+                } catch (err) {
+                    console.error("Error syncing admin notes to cloud:", err);
+                }
+            }
+        }
+
         // --- AUTH & DATA LOGIC ---
 
         window.toggleAuthMode = function() {
@@ -239,16 +334,16 @@
             e.preventDefault();
             
             if (!supabase) {
-                state.authError = "Database not connected. Add Supabase keys to code.";
+                state.authError = "Database not connected. Check Supabase keys.";
                 render();
                 return;
             }
 
-            const usernameInput = document.getElementById('auth-username').value.trim().toLowerCase();
+            const usernameInput = document.getElementById('auth-username').value.trim();
             const pinInput = document.getElementById('auth-pin').value;
 
-            if (!usernameInput || !usernameInput.match(/^[a-z0-9_]{3,15}$/)) {
-                state.authError = "Username: 3-15 chars, letters, numbers, and underscores only.";
+            if (!usernameInput || !usernameInput.match(/^[a-zA-Z0-9_]{3,20}$/)) {
+                state.authError = "Username: 3-20 chars, letters, numbers, and underscores only.";
                 render(); return;
             }
             if (!pinInput || !pinInput.match(/^[0-9]{6}$/)) {
@@ -279,11 +374,11 @@
 
             try {
                 if (state.authMode === 'register') {
-                    // Check if user exists
+                    // Check if user exists (case-insensitive)
                     const { data: existingUser, error: checkError } = await supabase
                         .from('gate_accounts')
                         .select('username')
-                        .eq('username', usernameInput)
+                        .ilike('username', usernameInput)
                         .maybeSingle();
 
                     if (checkError) throw checkError;
@@ -301,28 +396,29 @@
                                 name: nameInput,
                                 city: cityInput,
                                 subjects: INITIAL_SUBJECTS 
-                                // custom_target_date will be left as null
                             }]);
                             
                         if (insertError) throw insertError;
 
                         state.customUser = { username: usernameInput, name: nameInput, city: cityInput };
-                        state.subjects = JSON.parse(JSON.stringify(INITIAL_SUBJECTS)); // deep copy clone
-                        loadLocalSettings(usernameInput); // Local storage as fallback for new registrants just in case
+                        state.isAdmin = (usernameInput.toLowerCase() === ADMIN_USERNAME.toLowerCase());
+                        state.subjects = JSON.parse(JSON.stringify(INITIAL_SUBJECTS)); 
+                        loadLocalSettings(usernameInput); 
+                        await loadGlobalNotes();
                         state.view = 'app';
                     }
                 } else { 
-                    // Login
+                    // Login (case-insensitive)
                     const { data, error } = await supabase
                         .from('gate_accounts')
                         .select('*')
-                        .eq('username', usernameInput)
+                        .ilike('username', usernameInput)
                         .maybeSingle();
 
                     if (error) throw error;
 
                     if (!data) {
-                        state.authError = "Operative ID not found.";
+                        state.authError = "Operative ID not found. If this is a new account, click 'New Operative? Register Here.' below.";
                         state.view = 'auth';
                     } else {
                         if (data.pin !== pinInput) {
@@ -330,18 +426,19 @@
                             state.view = 'auth';
                         } else {
                             state.customUser = { 
-                                username: usernameInput, 
+                                username: data.username, 
                                 name: data.name || 'Unknown', 
                                 city: data.city || 'Unknown' 
                             };
+                            state.isAdmin = (data.username.toLowerCase() === ADMIN_USERNAME.toLowerCase());
                             state.subjects = data.subjects || JSON.parse(JSON.stringify(INITIAL_SUBJECTS));
                             
-                            // Get date from the database, fallback to local storage if absent
                             state.customTargetDate = data.custom_target_date || null;
                             if (!state.customTargetDate) {
-                                loadLocalSettings(usernameInput);
+                                loadLocalSettings(data.username);
                             }
 
+                            await loadGlobalNotes();
                             state.view = 'app';
                         }
                     }
@@ -356,10 +453,14 @@
 
         window.logout = function() {
             state.customUser = null;
+            state.isAdmin = false;
             state.subjects = INITIAL_SUBJECTS; 
             state.authError = '';
             state.authMode = 'login';
             state.customTargetDate = null;
+            state.activeNotesSubjectId = null;
+            state.activePreviewNote = null;
+            state.noteToDelete = null;
             state.view = 'auth';
             render();
         }
@@ -367,7 +468,6 @@
         async function saveToCloud() {
             if (!supabase || !state.customUser) return;
             try {
-                // Important: User must add 'custom_target_date' column (type int8/bigint) to their 'gate_accounts' table in Supabase
                 await supabase
                     .from('gate_accounts')
                     .update({ 
@@ -437,11 +537,210 @@
                 localStorage.removeItem('gate_target_' + state.customUser.username);
             }
             render();
-            saveToCloud(); // Save timeframe update back to Supabase
+            saveToCloud();
         }
 
         window.clearCustomTargetDate = function() {
             window.updateCustomTargetDate(null);
+        }
+
+        // --- NOTES REPOSITORY HANDLERS ---
+        window.openNotesModal = function(subjectId) {
+            state.activeNotesSubjectId = subjectId;
+            render();
+        }
+
+        window.closeNotesModal = function() {
+            state.activeNotesSubjectId = null;
+            render();
+        }
+
+        window.previewNote = function(noteId) {
+            const activeSubject = state.subjects.find(s => s.id === state.activeNotesSubjectId);
+            if (!activeSubject) return;
+            const note = activeSubject.notes.find(n => n.id === noteId);
+            if (note) {
+                state.activePreviewNote = note;
+                render();
+            }
+        }
+
+        window.closePreviewModal = function() {
+            state.activePreviewNote = null;
+            render();
+        }
+
+        // File selection upload handler for Admin_Operator
+        window.handleFileSelect = async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+                alert("Only PDF files are supported.");
+                return;
+            }
+
+            if (file.size > 15 * 1024 * 1024) { // 15MB limit
+                alert("File size too large. Maximum allowed size is 15MB.");
+                return;
+            }
+
+            const titleInput = document.getElementById('note-title-input');
+            const descInput = document.getElementById('note-desc-input');
+            const title = titleInput && titleInput.value.trim() ? titleInput.value.trim() : file.name;
+            const description = descInput ? descInput.value.trim() : 'Uploaded PDF notes';
+
+            state.uploadingNote = true;
+            render();
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const base64Url = event.target.result;
+                const newNote = {
+                    id: 'note_' + Date.now(),
+                    title: title,
+                    description: description,
+                    fileUrl: base64Url,
+                    uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    size: (file.size / (1024 * 1024)).toFixed(1) + ' MB'
+                };
+
+                // Add to active subject in state
+                state.subjects = state.subjects.map(sub => {
+                    if (sub.id === state.activeNotesSubjectId) {
+                        return {
+                            ...sub,
+                            notes: [newNote, ...(sub.notes || [])]
+                        };
+                    }
+                    return sub;
+                });
+
+                // Cloud push note row if Supabase active
+                if (supabase) {
+                    try {
+                        await supabase.from('gate_notes').insert([{
+                            id: newNote.id,
+                            subject_id: state.activeNotesSubjectId,
+                            title: newNote.title,
+                            description: newNote.description,
+                            file_url: newNote.fileUrl,
+                            uploaded_at: newNote.uploadedAt,
+                            size: newNote.size
+                        }]);
+                    } catch (err) {
+                        console.error("Cloud insert error:", err);
+                    }
+                }
+
+                await saveNotesState();
+                state.uploadingNote = false;
+                render();
+            };
+
+            reader.onerror = function() {
+                alert("Failed to read file.");
+                state.uploadingNote = false;
+                render();
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        window.addUrlNote = async function() {
+            const titleInput = document.getElementById('note-title-input');
+            const descInput = document.getElementById('note-desc-input');
+            const urlInput = document.getElementById('note-url-input');
+
+            if (!urlInput || !urlInput.value.trim()) {
+                alert("Please provide a valid PDF Link / URL.");
+                return;
+            }
+
+            const title = titleInput && titleInput.value.trim() ? titleInput.value.trim() : 'Reference PDF Link';
+            const description = descInput ? descInput.value.trim() : 'External PDF Resource';
+            const fileUrl = urlInput.value.trim();
+
+            const newNote = {
+                id: 'note_' + Date.now(),
+                title: title,
+                description: description,
+                fileUrl: fileUrl,
+                uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                size: 'Web PDF'
+            };
+
+            state.subjects = state.subjects.map(sub => {
+                if (sub.id === state.activeNotesSubjectId) {
+                    return {
+                        ...sub,
+                        notes: [newNote, ...(sub.notes || [])]
+                    };
+                }
+                return sub;
+            });
+
+            if (supabase) {
+                try {
+                    await supabase.from('gate_notes').insert([{
+                        id: newNote.id,
+                        subject_id: state.activeNotesSubjectId,
+                        title: newNote.title,
+                        description: newNote.description,
+                        file_url: newNote.fileUrl,
+                        uploaded_at: newNote.uploadedAt,
+                        size: newNote.size
+                    }]);
+                } catch (err) {
+                    console.error("Cloud URL note error:", err);
+                }
+            }
+
+            await saveNotesState();
+            render();
+        }
+
+        // Custom Delete Confirmation Modal Logic
+        window.requestDeleteNote = function(noteId) {
+            state.noteToDelete = noteId;
+            render();
+        }
+
+        window.cancelDeleteNote = function() {
+            state.noteToDelete = null;
+            render();
+        }
+
+        window.confirmDeleteNote = async function() {
+            if (!state.noteToDelete) return;
+            const noteId = state.noteToDelete;
+
+            // Remove note from local state
+            state.subjects = state.subjects.map(sub => {
+                if (sub.id === state.activeNotesSubjectId) {
+                    return {
+                        ...sub,
+                        notes: (sub.notes || []).filter(n => n.id !== noteId)
+                    };
+                }
+                return sub;
+            });
+
+            // Delete from Supabase if active
+            if (supabase) {
+                try {
+                    await supabase
+                        .from('gate_notes')
+                        .delete()
+                        .eq('id', noteId);
+                } catch (e) {
+                    console.error("Cloud delete note error:", e);
+                }
+            }
+
+            state.noteToDelete = null;
+            await saveNotesState();
+            render();
         }
 
         function setupEventListeners() {
@@ -467,6 +766,13 @@
                     const chapterId = chapterToggle.getAttribute('data-chapter-id');
                     const type = chapterToggle.getAttribute('data-type');
                     window.toggleChapter(subjectId, chapterId, type);
+                    return;
+                }
+
+                const notesBtn = e.target.closest('[data-action="openNotes"]');
+                if (notesBtn) {
+                    const subjectId = notesBtn.getAttribute('data-subject-id');
+                    window.openNotesModal(subjectId);
                     return;
                 }
             });
@@ -501,7 +807,6 @@
             state.subjects.forEach(sub => {
                 sub.chapters.forEach(chap => {
                     totalChaptersCount++;
-                    // Chapter is complete ONLY if both theory and questions are complete
                     if (!(chap.theory && chap.questions)) {
                         incompleteCount++;
                     }
@@ -509,12 +814,9 @@
             });
 
             const now = Date.now();
-            
-            // Original Pace
-            const daysToGate = Math.max((GATE_DATE - now) / (1000 * 60 * 60 * 24), 0.001); // avoid infinity
+            const daysToGate = Math.max((GATE_DATE - now) / (1000 * 60 * 60 * 24), 0.001);
             const originalPace = (incompleteCount / daysToGate).toFixed(2);
 
-            // Revised Pace
             let revisedPace = null;
             if (state.customTargetDate) {
                 const daysToCustom = Math.max((state.customTargetDate - now) / (1000 * 60 * 60 * 24), 0.001);
@@ -529,7 +831,6 @@
             };
         }
 
-        // Helper to format timestamp to datetime-local value format (YYYY-MM-DDThh:mm)
         function formatForDateTimeLocal(timestamp) {
             const d = new Date(timestamp);
             const pad = (n) => n.toString().padStart(2, '0');
@@ -582,7 +883,6 @@
         function updateCountdownDOM() {
             if (state.view !== 'app') return;
             
-            // Original DOM updates
             const cdDay = document.getElementById('cd-day');
             if (cdDay) {
                 cdDay.innerText = state.countdown.d.toString().padStart(2, '0');
@@ -591,7 +891,6 @@
                 document.getElementById('cd-sec').innerText = state.countdown.s.toString().padStart(2, '0');
             }
 
-            // Revised DOM updates (if present)
             const rcdDay = document.getElementById('rev-cd-day');
             if (rcdDay && state.customTargetDate) {
                 rcdDay.innerText = state.revisedCountdown.d.toString().padStart(2, '0');
@@ -599,6 +898,173 @@
                 document.getElementById('rev-cd-min').innerText = state.revisedCountdown.m.toString().padStart(2, '0');
                 document.getElementById('rev-cd-sec').innerText = state.revisedCountdown.s.toString().padStart(2, '0');
             }
+        }
+
+        // --- RENDER MODAL TEMPLATES ---
+        function renderNotesModal() {
+            if (!state.activeNotesSubjectId) return '';
+            const subject = state.subjects.find(s => s.id === state.activeNotesSubjectId);
+            if (!subject) return '';
+
+            const notesList = subject.notes || [];
+
+            return `
+                <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+                    <div class="bg-slate-900 border border-cyan-800/80 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.15)] overflow-hidden">
+                        
+                        <!-- Header -->
+                        <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 rounded-lg bg-cyan-950/80 border border-cyan-800/60 text-cyan-400">
+                                    ${icons.fileText}
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+                                        ${subject.name} <span class="text-cyan-400 text-xs font-mono font-normal uppercase">// Notes Repository</span>
+                                    </h2>
+                                    <p class="text-xs text-slate-400 font-mono mt-0.5">Available Documents: ${notesList.length}</p>
+                                </div>
+                            </div>
+                            <button onclick="closeNotesModal()" class="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors">
+                                ${icons.x}
+                            </button>
+                        </div>
+
+                        <!-- Body / List -->
+                        <div class="p-5 overflow-y-auto space-y-4 flex-1">
+                            ${notesList.length === 0 ? `
+                                <div class="text-center py-10 bg-slate-950/40 rounded-xl border border-slate-800">
+                                    <div class="text-slate-600 flex justify-center mb-2">${icons.fileText}</div>
+                                    <p class="text-slate-400 text-sm font-medium">No notes uploaded for this subject yet.</p>
+                                    <p class="text-slate-600 text-xs font-mono mt-1">Notes will be uploaded soon..</p>
+                                </div>
+                            ` : notesList.map(note => `
+                                <div class="bg-slate-950/60 border border-slate-800 hover:border-cyan-800/50 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all group">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <h4 class="text-sm font-bold text-slate-200 group-hover:text-cyan-400 transition-colors truncate">${note.title}</h4>
+                                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${note.size || 'PDF'}</span>
+                                        </div>
+                                        <p class="text-xs text-slate-400 mt-1 line-clamp-2">${note.description}</p>
+                                        <div class="text-[10px] text-slate-500 font-mono mt-2">Added: ${note.uploadedAt}</div>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <button onclick="previewNote('${note.id}')" class="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded-lg bg-cyan-950/60 border border-cyan-800 text-cyan-300 hover:bg-cyan-900/60 transition-colors">
+                                            ${icons.eye} Preview
+                                        </button>
+                                        <a href="${note.fileUrl}" download="${note.title}.pdf" target="_blank" class="flex items-center gap-1.5 text-xs font-mono px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 transition-colors">
+                                            ${icons.download} Download
+                                        </a>
+                                        ${state.isAdmin ? `
+                                            <button onclick="requestDeleteNote('${note.id}')" class="p-2 rounded-lg bg-rose-950/40 border border-rose-900/60 text-rose-400 hover:bg-rose-900/60 transition-colors" title="Delete Note">
+                                                ${icons.trash}
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+
+                            <!-- Admin Upload Section -->
+                            ${state.isAdmin ? `
+                                <div class="mt-6 border-t border-slate-800 pt-5">
+                                    <div class="bg-cyan-950/20 border border-cyan-800/40 p-4 rounded-xl space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold flex items-center gap-2">
+                                                ${icons.upload} Upload Official Subject Note
+                                            </h3>
+                                            <span class="text-[10px] font-mono bg-cyan-900/40 text-cyan-300 px-2 py-0.5 rounded border border-cyan-700/50">Admin Rights</span>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <input type="text" id="note-title-input" placeholder="Document Title (e.g. Chapter 1 Formula Sheet)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                            <input type="text" id="note-desc-input" placeholder="Brief Description" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                        </div>
+
+                                        <div class="flex flex-col sm:flex-row gap-3 items-center">
+                                            <label class="w-full sm:w-auto flex-1 cursor-pointer bg-slate-900 hover:bg-slate-850 border border-dashed border-cyan-700/80 rounded-lg p-3 text-center transition-all">
+                                                <input type="file" accept=".pdf" onchange="handleFileSelect(event)" class="hidden">
+                                                <span class="text-xs font-mono text-cyan-300 block">
+                                                    ${state.uploadingNote ? 'Uploading & Processing PDF...' : 'Click to Upload Local PDF File (Max 15MB)'}
+                                                </span>
+                                            </label>
+
+                                            <span class="text-xs text-slate-500 font-mono uppercase">OR</span>
+
+                                            <div class="flex w-full sm:w-auto gap-2">
+                                                <input type="url" id="note-url-input" placeholder="Direct PDF URL (Google Drive / Web)" class="w-full sm:w-48 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                                <button onclick="addUrlNote()" class="px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs font-mono uppercase tracking-wider transition-colors shrink-0">
+                                                    Add URL
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPreviewModal() {
+            if (!state.activePreviewNote) return '';
+            const note = state.activePreviewNote;
+
+            return `
+                <div class="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 bg-slate-950/90 backdrop-blur-lg animate-fade-in">
+                    <div class="bg-slate-900 border border-cyan-800 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-[0_0_60px_rgba(6,182,212,0.2)] overflow-hidden">
+                        
+                        <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="p-2 rounded-lg bg-cyan-950 text-cyan-400">
+                                    ${icons.fileText}
+                                </div>
+                                <div class="truncate">
+                                    <h3 class="text-base font-bold text-slate-100 truncate">${note.title}</h3>
+                                    <p class="text-xs text-slate-400 truncate">${note.description}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <a href="${note.fileUrl}" download="${note.title}.pdf" target="_blank" class="flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-300 hover:bg-cyan-900 transition-colors">
+                                    ${icons.download} Download
+                                </a>
+                                <button onclick="closePreviewModal()" class="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors">
+                                    ${icons.x}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 bg-slate-950 relative overflow-hidden">
+                            <iframe src="${note.fileUrl}" class="w-full h-full border-0" title="PDF Preview"></iframe>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDeleteConfirmModal() {
+            if (!state.noteToDelete) return '';
+
+            return `
+                <div class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
+                    <div class="bg-slate-900 border border-rose-900/80 rounded-2xl w-full max-w-md p-6 text-center shadow-[0_0_40px_rgba(244,63,94,0.2)]">
+                        <div class="flex justify-center">
+                            ${icons.alertTriangle}
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-100 uppercase tracking-wider mb-2">Confirm Document Deletion</h3>
+                        <p class="text-xs text-slate-400 font-mono mb-6">Are you sure you want to permanently delete this reference note? This action will remove access for all users.</p>
+                        
+                        <div class="flex gap-3 justify-center">
+                            <button onclick="cancelDeleteNote()" class="w-1/2 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono uppercase tracking-wider border border-slate-700 transition-colors">
+                                Cancel
+                            </button>
+                            <button onclick="confirmDeleteNote()" class="w-1/2 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs font-mono uppercase tracking-wider transition-colors shadow-[0_0_15px_rgba(225,29,72,0.4)]">
+                                Delete Note
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function render() {
@@ -610,7 +1076,7 @@
                     <div class="min-h-screen bg-slate-950 flex items-center justify-center font-sans text-cyan-400">
                         <div class="flex flex-col items-center gap-4">
                             ${icons.zap}
-                            <p class="tracking-widest uppercase text-sm">Initializing Neural Uplink...</p>
+                            <p class="tracking-widest uppercase text-sm font-mono">Initializing Neural Uplink...</p>
                         </div>
                     </div>
                 `;
@@ -646,9 +1112,9 @@
                             <form onsubmit="submitAuth(event)" class="space-y-4">
                                 <div>
                                     <label class="block text-cyan-500 font-mono text-xs tracking-widest mb-1 uppercase">Operative ID (Username)</label>
-                                    <input type="text" id="auth-username" required pattern="[a-zA-Z0-9_]{3,15}"
+                                    <input type="text" id="auth-username" required pattern="[a-zA-Z0-9_]{3,20}"
                                         class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-slate-700"
-                                        placeholder="e.g. shadow_01">
+                                        placeholder="Enter Username">
                                 </div>
 
                                 ${state.authMode === 'register' ? `
@@ -656,13 +1122,13 @@
                                     <label class="block text-cyan-500 font-mono text-xs tracking-widest mb-1 uppercase">Real Name</label>
                                     <input type="text" id="auth-name" required
                                         class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-slate-700"
-                                        placeholder="John Doe">
+                                        placeholder="Enter Real Name">
                                 </div>
                                 <div>
                                     <label class="block text-cyan-500 font-mono text-xs tracking-widest mb-1 uppercase">Operating City</label>
                                     <input type="text" id="auth-city" required
                                         class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-slate-700"
-                                        placeholder="Neo Tokyo">
+                                        placeholder="Enter City">
                                 </div>
                                 ` : ''}
 
@@ -713,6 +1179,7 @@
                 const isExpanded = state.expanded[subject.id];
                 const progress = calculateSubjectProgress(subject.chapters);
                 const isComplete = progress === 100;
+                const notesCount = (subject.notes || []).length;
                 
                 const containerBorder = isExpanded ? 'border-cyan-800/60 shadow-[0_4px_20px_rgba(6,182,212,0.05)]' : 'border-slate-800/60 hover:border-slate-700';
                 const chevronIcon = isExpanded ? icons.chevronUp : icons.chevronDown;
@@ -750,8 +1217,8 @@
 
                 subjectsHTML += `
                     <div class="bg-slate-900/40 backdrop-blur-sm border rounded-xl overflow-hidden transition-all duration-300 ${containerBorder}">
-                        <div data-action="toggleExpand" data-subject-id="${subject.id}" class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none group">
-                            <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+                            <div data-action="toggleExpand" data-subject-id="${subject.id}" class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group">
                                 <div class="p-2 rounded-lg transition-colors ${chevronBg}">
                                     ${chevronIcon}
                                 </div>
@@ -767,12 +1234,21 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="flex items-center justify-end sm:w-auto">
+
+                            <div class="flex items-center gap-2 justify-end shrink-0">
+                                <!-- Notes Repository Button -->
+                                <button data-action="openNotes" data-subject-id="${subject.id}"
+                                        class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider px-3 py-1.5 rounded border border-cyan-800/80 bg-cyan-950/60 text-cyan-400 hover:bg-cyan-900/60 hover:border-cyan-500/80 transition-all shadow-[0_0_10px_rgba(6,182,212,0.15)]">
+                                    ${icons.fileText} Notes
+                                    <span class="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-900 text-cyan-200 font-bold border border-cyan-700/60">${notesCount}</span>
+                                </button>
+
                                 <button data-action="markComplete" data-subject-id="${subject.id}" data-is-complete="${isComplete}"
                                         class="text-xs font-mono uppercase tracking-wider px-3 py-1.5 rounded border transition-all ${btnClasses}">
                                     ${btnText}
                                 </button>
                             </div>
+
                             <div class="sm:hidden w-full mt-2">
                                 ${renderProgressBar(progress, "h-1", pgColorClass, pgGlowClassMobile)}
                             </div>
@@ -786,8 +1262,13 @@
                 ? `<div class="flex flex-col items-center md:items-start gap-1">
                      <div class="flex items-center gap-2">
                          <span class="text-cyan-400 font-bold uppercase border border-cyan-800 bg-cyan-950/50 px-2 py-0.5 rounded shadow-[0_0_5px_rgba(6,182,212,0.3)]">
-                            @${state.customUser.username}
+                             @${state.customUser.username}
                          </span>
+                         ${state.isAdmin ? `
+                            <span class="text-[10px] font-mono text-fuchsia-400 bg-fuchsia-950/60 border border-fuchsia-800 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                                ADMIN OPERATOR
+                            </span>
+                         ` : ''}
                          <button onclick="logout()" class="text-slate-500 hover:text-fuchsia-400 transition-colors p-1" title="Disconnect Session">
                              ${icons.logout}
                          </button>
@@ -797,9 +1278,6 @@
                      </span>
                    </div>` 
                 : '';
-
-            // Formatting for DateTime Input
-            const customDateInputVal = state.customTargetDate ? formatForDateTimeLocal(state.customTargetDate) : '';
 
             appDiv.innerHTML = `
                 ${backgroundHTML}
@@ -938,19 +1416,25 @@
                     <div class="space-y-4 pb-20">
                         ${subjectsHTML}
                     </div>
+
                     <!-- Watermark / Footer -->
-                      <div class="mt-12 pb-20 text-center">
+                    <div class="mt-12 pb-20 text-center">
                         <div class="inline-block bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-full px-4 py-2 text-[10px] md:text-xs font-mono text-slate-400 hover:border-cyan-800 hover:text-slate-300 transition-all duration-300">
-                        MADE BY <span class="text-cyan-500 font-bold uppercase tracking-wider">Shikhar Verma</span>
-                        <span class="mx-2 text-slate-600">//</span>
-                        SUPPORT & SUGGESTIONS:
-                        <a href="mailto:shikharverma1254@gmail.com"
-                        class="text-fuchsia-400 hover:text-fuchsia-300 hover:underline transition-colors">
-                        shikharverma1254@gmail.com
-                        </a>
+                            MADE BY <span class="text-cyan-500 font-bold uppercase tracking-wider">Shikhar Verma</span>
+                            <span class="mx-2 text-slate-600">//</span>
+                            SUPPORT & SUGGESTIONS:
+                            <a href="mailto:shikharverma1254@gmail.com"
+                               class="text-fuchsia-400 hover:text-fuchsia-300 hover:underline transition-colors">
+                                shikharverma1254@gmail.com
+                            </a>
                         </div>
-                      </div>
+                    </div>
                 </div>
+
+                <!-- MODALS -->
+                ${renderNotesModal()}
+                ${renderPreviewModal()}
+                ${renderDeleteConfirmModal()}
             `;
             
             // Re-bind DOM references for the ticker
@@ -964,17 +1448,14 @@
                     dateFormat: "Y-m-d H:i",
                     defaultDate: state.customTargetDate ? new Date(state.customTargetDate) : null,
                     onReady: function(selectedDates, dateStr, instance) {
-                        // Create container
                         const btnContainer = document.createElement("div");
                         btnContainer.className = "cyber-confirm-btn-container";
                         
-                        // Create button
                         const confirmBtn = document.createElement("button");
                         confirmBtn.className = "cyber-confirm-btn";
                         confirmBtn.innerHTML = "Confirm Timeframe";
                         confirmBtn.type = "button";
                         
-                        // Handle click
                         confirmBtn.addEventListener("click", function() {
                             if (instance.selectedDates.length > 0) {
                                 const newTime = instance.selectedDates[0].getTime();
@@ -989,7 +1470,6 @@
                         instance.calendarContainer.appendChild(btnContainer);
                     },
                     onClose: function(selectedDates, dateStr, instance) {
-                        // If user clicks outside without clicking confirm, revert to the actual saved date
                         if (state.customTargetDate) {
                             instance.setDate(new Date(state.customTargetDate), false);
                         } else {
