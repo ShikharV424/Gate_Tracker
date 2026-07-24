@@ -244,6 +244,7 @@
 
             // 1. Try Supabase Cloud Fetch
             if (supabase) {
+                // 1A. Fetch from dedicated gate_notes table if available
                 try {
                     const { data, error } = await supabase
                         .from('gate_notes')
@@ -265,7 +266,35 @@
                         });
                     }
                 } catch (e) {
-                    console.log("Supabase notes fetch fallback to localStorage:", e);
+                    console.log("Supabase gate_notes fetch fallback:", e);
+                }
+
+                // 1B. Fetch directly from Admin_Operator's account in gate_accounts (Works across all devices!)
+                try {
+                    const { data: adminAcc, error: adminErr } = await supabase
+                        .from('gate_accounts')
+                        .select('subjects')
+                        .ilike('username', ADMIN_USERNAME)
+                        .maybeSingle();
+
+                    if (!adminErr && adminAcc && adminAcc.subjects) {
+                        adminAcc.subjects.forEach(sub => {
+                            if (sub.notes && sub.notes.length > 0) {
+                                if (!globalNotesMap[sub.id]) {
+                                    globalNotesMap[sub.id] = [];
+                                }
+                                const existingIds = new Set(globalNotesMap[sub.id].map(n => n.id));
+                                sub.notes.forEach(note => {
+                                    if (!existingIds.has(note.id)) {
+                                        globalNotesMap[sub.id].push(note);
+                                        existingIds.add(note.id);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.log("Supabase Admin account notes fetch fallback:", e);
                 }
             }
 
@@ -309,13 +338,13 @@
             });
             localStorage.setItem('gate_global_notes', JSON.stringify(notesMap));
 
-            // Sync Admin Notes to Supabase
+            // Sync Admin Notes to Supabase Admin_Operator account
             if (supabase && state.isAdmin) {
                 try {
                     await supabase
                         .from('gate_accounts')
                         .update({ subjects: state.subjects })
-                        .eq('username', ADMIN_USERNAME);
+                        .ilike('username', ADMIN_USERNAME);
                 } catch (err) {
                     console.error("Error syncing admin notes to cloud:", err);
                 }
