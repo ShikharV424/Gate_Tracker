@@ -185,7 +185,6 @@
         // Target Date: Approx First Weekend of Feb 2027
         const GATE_DATE = new Date('2027-02-06T08:00:00+05:30').getTime();
 
-        // --- INIT APP ---
         function init() {
             render(); // Render initial UI
             
@@ -238,7 +237,6 @@
             setupEventListeners();
         }
 
-        // --- GLOBAL NOTES LOADER ---
         async function loadGlobalNotes() {
             let globalNotesMap = {};
 
@@ -259,8 +257,8 @@
                                 id: item.id,
                                 title: item.title,
                                 description: item.description,
-                                fileUrl: item.file_url,
-                                uploadedAt: item.uploaded_at,
+                                fileUrl: item.file_url || item.fileUrl,
+                                uploadedAt: item.uploaded_at || item.uploadedAt,
                                 size: item.size || 'PDF'
                             });
                         });
@@ -269,7 +267,7 @@
                     console.log("Supabase gate_notes fetch fallback:", e);
                 }
 
-                // 1B. Fetch directly from Admin_Operator's account in gate_accounts (Works across all devices!)
+                // 1B. Fetch directly from Admin_Operator's account in gate_accounts
                 try {
                     const { data: adminAcc, error: adminErr } = await supabase
                         .from('gate_accounts')
@@ -307,7 +305,6 @@
                         if (!globalNotesMap[subId]) {
                             globalNotesMap[subId] = parsed[subId] || [];
                         } else {
-                            // Merge without duplicates
                             const existingIds = new Set(globalNotesMap[subId].map(n => n.id));
                             (parsed[subId] || []).forEach(note => {
                                 if (!existingIds.has(note.id)) {
@@ -328,7 +325,6 @@
             }));
         }
 
-        // Save notes globally
         async function saveNotesState() {
             const notesMap = {};
             state.subjects.forEach(sub => {
@@ -403,7 +399,7 @@
 
             try {
                 if (state.authMode === 'register') {
-                    // Check if user exists (case-insensitive)
+                    // Check if user exists
                     const { data: existingUser, error: checkError } = await supabase
                         .from('gate_accounts')
                         .select('username')
@@ -437,7 +433,7 @@
                         state.view = 'app';
                     }
                 } else { 
-                    // Login (case-insensitive)
+                    // Login
                     const { data, error } = await supabase
                         .from('gate_accounts')
                         .select('*')
@@ -573,7 +569,6 @@
             window.updateCustomTargetDate(null);
         }
 
-        // --- NOTES REPOSITORY HANDLERS ---
         window.openNotesModal = function(subjectId) {
             state.activeNotesSubjectId = subjectId;
             render();
@@ -599,7 +594,17 @@
             render();
         }
 
-        // File selection upload handler for Admin_Operator
+        // Helper function for Base64 conversion fallback
+        function convertFileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // File selection upload handler with Supabase Storage Bucket & Base64 Fallback
         window.handleFileSelect = async function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -622,19 +627,58 @@
             state.uploadingNote = true;
             render();
 
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const base64Url = event.target.result;
+            try {
+                let publicFileUrl = '';
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${state.activeNotesSubjectId}/${Date.now()}.${fileExt}`;
+
+                // 1. Upload to Supabase Storage Bucket 'notes' if available
+                if (supabase) {
+                    const { data: storageData, error: storageError } = await supabase.storage
+                        .from('notes')
+                        .upload(fileName, file, { cacheControl: '3600', upsert: true });
+
+                    if (storageError) {
+                        console.error("Storage upload fallback:", storageError);
+                        publicFileUrl = await convertFileToBase64(file);
+                    } else {
+                        const { data: urlData } = supabase.storage
+                            .from('notes')
+                            .getPublicUrl(fileName);
+                        publicFileUrl = urlData.publicUrl;
+                    }
+                } else {
+                    publicFileUrl = await convertFileToBase64(file);
+                }
+
                 const newNote = {
                     id: 'note_' + Date.now(),
                     title: title,
                     description: description,
-                    fileUrl: base64Url,
+                    fileUrl: publicFileUrl,
                     uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                     size: (file.size / (1024 * 1024)).toFixed(1) + ' MB'
                 };
 
-                // Add to active subject in state
+                // 2. Insert record into gate_notes table
+                if (supabase) {
+                    const { error: dbError } = await supabase.from('gate_notes').insert([{
+                        id: newNote.id,
+                        subject_id: state.activeNotesSubjectId,
+                        title: newNote.title,
+                        description: newNote.description,
+                        file_url: newNote.fileUrl,
+                        uploaded_at: newNote.uploadedAt,
+                        size: newNote.size
+                    }]);
+
+                    if (dbError) {
+                        alert("Database Insert Alert: " + dbError.message + "\n\nNote: If this error mentions Row-Level Security, please run the SQL policies in Supabase.");
+                        console.error("Cloud insert error:", dbError);
+                    }
+                }
+
+                // 3. Update local state
                 state.subjects = state.subjects.map(sub => {
                     if (sub.id === state.activeNotesSubjectId) {
                         return {
@@ -645,36 +689,14 @@
                     return sub;
                 });
 
-                // Cloud push note row if Supabase active
-                if (supabase) {
-                    try {
-                        await supabase.from('gate_notes').insert([{
-                            id: newNote.id,
-                            subject_id: state.activeNotesSubjectId,
-                            title: newNote.title,
-                            description: newNote.description,
-                            file_url: newNote.fileUrl,
-                            uploaded_at: newNote.uploadedAt,
-                            size: newNote.size
-                        }]);
-                    } catch (err) {
-                        console.error("Cloud insert error:", err);
-                    }
-                }
-
                 await saveNotesState();
+            } catch (err) {
+                alert("Upload failed: " + err.message);
+            } finally {
                 state.uploadingNote = false;
                 render();
-            };
-
-            reader.onerror = function() {
-                alert("Failed to read file.");
-                state.uploadingNote = false;
-                render();
-            };
-
-            reader.readAsDataURL(file);
-        }
+            }
+        };
 
         window.addUrlNote = async function() {
             const titleInput = document.getElementById('note-title-input');
@@ -807,7 +829,6 @@
             });
         }
 
-        // --- CALCULATIONS ---
         function calculateSubjectProgress(chapters) {
             if (chapters.length === 0) return 0;
             const total = chapters.length * 2;
@@ -860,13 +881,7 @@
             };
         }
 
-        function formatForDateTimeLocal(timestamp) {
-            const d = new Date(timestamp);
-            const pad = (n) => n.toString().padStart(2, '0');
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
-
-        // --- RENDER FUNCTIONS ---
+        // --- RENDER UI COMPONENTS ---
         function renderProgressBar(progress, height = "h-2", colorClass = "bg-cyan-500", glowClass = "shadow-[0_0_15px_#06b6d4]") {
             return `
                 <div class="w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700/50 ${height}">
@@ -929,7 +944,6 @@
             }
         }
 
-        // --- RENDER MODAL TEMPLATES ---
         function renderNotesModal() {
             if (!state.activeNotesSubjectId) return '';
             const subject = state.subjects.find(s => s.id === state.activeNotesSubjectId);
@@ -1013,7 +1027,7 @@
                                             <label class="w-full sm:w-auto flex-1 cursor-pointer bg-slate-900 hover:bg-slate-850 border border-dashed border-cyan-700/80 rounded-lg p-3 text-center transition-all">
                                                 <input type="file" accept=".pdf" onchange="handleFileSelect(event)" class="hidden">
                                                 <span class="text-xs font-mono text-cyan-300 block">
-                                                    ${state.uploadingNote ? 'Uploading & Processing PDF...' : 'Click to Upload Local PDF File (Max 15MB)'}
+                                                    ${state.uploadingNote ? 'Uploading & Syncing PDF...' : 'Click to Upload Local PDF File (Max 15MB)'}
                                                 </span>
                                             </label>
 
@@ -1195,7 +1209,6 @@
                 return;
             }
 
-            // --- MAIN APP VIEW ---
             const stats = getOverallStats();
             const analytics = getAnalyticsStats();
 
@@ -1469,7 +1482,6 @@
             // Re-bind DOM references for the ticker
             updateCountdownDOM();
 
-            // Initialize Flatpickr for the date selector
             const datePickerEl = document.getElementById('custom-target-date-picker');
             if (datePickerEl) {
                 flatpickr(datePickerEl, {
@@ -1509,7 +1521,7 @@
             }
         }
 
-        // Boot
+        // Boot application
         init();
 
     </script>
