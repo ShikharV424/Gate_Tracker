@@ -179,8 +179,24 @@
             countdown: { d: 0, h: 0, m: 0, s: 0 },
             revisedCountdown: { d: 0, h: 0, m: 0, s: 0 },
             customTargetDate: null,
-            uploadingNote: false
+            uploadingNote: false,
+            saveStatus: 'saved',
+            saveError: '',
+            activeChapterRating: null,
+            conflictData: null,
+            pendingRecovery: null
         };
+
+        // Save/sync tracking. Chapter ratings live in each user's existing subjects JSONB;
+        // no database schema change is needed.
+        let lastSyncedSubjects = null;
+        let lastSyncedTargetDate = null;
+        let lastSyncedVersion = null;
+        let saveTimer = null;
+        let saveQueue = Promise.resolve();
+        let saveRevision = 0;
+        let forceSaveRequested = false;
+        const RATING_OPTIONS = ['Again', 'Hard', 'Good', 'Easy'];
 
         // Target Date: Approx First Weekend of Feb 2027
         const GATE_DATE = new Date('2027-02-06T08:00:00+05:30').getTime();
@@ -235,6 +251,16 @@
 
             // Set up Event Listeners
             setupEventListeners();
+            window.addEventListener('online', () => {
+                if (state.customUser && (state.saveStatus === 'pending' || state.saveStatus === 'error')) {
+                    setSaveStatus('pending', 'Connection restored. Retry your locally stored progress to sync it safely.');
+                }
+            });
+            window.addEventListener('offline', () => {
+                if (state.customUser && state.saveStatus !== 'saved') {
+                    setSaveStatus('pending', 'Connection lost. Unsynced changes are queued locally when browser storage is available.');
+                }
+            });
         }
 
         async function loadGlobalNotes() {
@@ -334,15 +360,24 @@
             });
             localStorage.setItem('gate_global_notes', JSON.stringify(notesMap));
 
-            // Sync Admin Notes to Supabase Admin_Operator account
+            // Admin note writes also bump the optimistic-concurrency token. Refresh our baseline
+            // from the confirmed response so the next progress save is not misreported as a conflict.
             if (supabase && state.isAdmin) {
                 try {
-                    await supabase
+                    const { data, error } = await supabase
                         .from('gate_accounts')
                         .update({ subjects: state.subjects })
-                        .ilike('username', ADMIN_USERNAME);
+                        .ilike('username', ADMIN_USERNAME)
+                        .select('subjects, custom_target_date, progress_updated_at')
+                        .maybeSingle();
+                    if (error) throw error;
+                    if (!data) throw new Error('Supabase did not confirm saving the admin notes.');
+                    lastSyncedSubjects = cloneData(data.subjects || state.subjects);
+                    lastSyncedTargetDate = normalizeTimestamp(data.custom_target_date);
+                    lastSyncedVersion = data.progress_updated_at || lastSyncedVersion;
                 } catch (err) {
                     console.error("Error syncing admin notes to cloud:", err);
+                    setSaveStatus(navigator.onLine ? 'error' : 'pending', 'Admin notes did not confirm as saved: ' + (err.message || 'unknown error'));
                 }
             }
         }
@@ -413,7 +448,7 @@
                         state.view = 'auth';
                     } else {
                         // Create new profile
-                        const { error: insertError } = await supabase
+                        const { data: insertedAccount, error: insertError } = await supabase
                             .from('gate_accounts')
                             .insert([{ 
                                 username: usernameInput,
@@ -421,15 +456,21 @@
                                 name: nameInput,
                                 city: cityInput,
                                 subjects: INITIAL_SUBJECTS 
-                            }]);
+                            }])
+                            .select('username, subjects, custom_target_date, progress_updated_at')
+                            .single();
                             
                         if (insertError) throw insertError;
 
                         state.customUser = { username: usernameInput, name: nameInput, city: cityInput };
                         state.isAdmin = (usernameInput.toLowerCase() === ADMIN_USERNAME.toLowerCase());
-                        state.subjects = JSON.parse(JSON.stringify(INITIAL_SUBJECTS)); 
+                        state.subjects = JSON.parse(JSON.stringify(insertedAccount.subjects || INITIAL_SUBJECTS)); 
+                        lastSyncedSubjects = cloneData(insertedAccount.subjects || INITIAL_SUBJECTS);
+                        lastSyncedTargetDate = normalizeTimestamp(insertedAccount.custom_target_date);
+                        lastSyncedVersion = insertedAccount.progress_updated_at || null;
                         loadLocalSettings(usernameInput); 
                         await loadGlobalNotes();
+                        detectPendingRecovery(usernameInput);
                         state.view = 'app';
                     }
                 } else { 
@@ -457,6 +498,9 @@
                             };
                             state.isAdmin = (data.username.toLowerCase() === ADMIN_USERNAME.toLowerCase());
                             state.subjects = data.subjects || JSON.parse(JSON.stringify(INITIAL_SUBJECTS));
+                            lastSyncedSubjects = cloneData(data.subjects || INITIAL_SUBJECTS);
+                            lastSyncedTargetDate = normalizeTimestamp(data.custom_target_date);
+                            lastSyncedVersion = data.progress_updated_at || null;
 
                             // Keep Control System immediately after Basic Thermodynamics
                             // for existing users whose subjects are already stored in Supabase.
@@ -473,6 +517,7 @@
                             }
 
                             await loadGlobalNotes();
+                            detectPendingRecovery(data.username);
                             state.view = 'app';
                         }
                     }
@@ -485,7 +530,21 @@
             render();
         }
 
-        window.logout = function() {
+        window.logout = async function() {
+            if (state.customUser && state.saveStatus === 'saving') {
+                if (saveTimer) {
+                    clearTimeout(saveTimer);
+                    saveTimer = null;
+                    const forceThisSave = forceSaveRequested;
+                    forceSaveRequested = false;
+                    saveQueue = saveQueue.then(() => persistProgressToCloud(forceThisSave));
+                }
+                await saveQueue;
+            }
+            if (state.customUser && ['pending', 'error', 'conflict'].includes(state.saveStatus)) {
+                const leaveAnyway = confirm('Some progress may not be synced yet. A local recovery copy has been kept when possible. Log out anyway?');
+                if (!leaveAnyway) return;
+            }
             state.customUser = null;
             state.isAdmin = false;
             state.subjects = INITIAL_SUBJECTS; 
@@ -495,24 +554,405 @@
             state.activeNotesSubjectId = null;
             state.activePreviewNote = null;
             state.noteToDelete = null;
+            state.activeChapterRating = null;
+            state.conflictData = null;
+            state.pendingRecovery = null;
+            state.saveStatus = 'saved';
+            state.saveError = '';
+            lastSyncedSubjects = null;
+            lastSyncedTargetDate = null;
+            lastSyncedVersion = null;
             state.view = 'auth';
             render();
         }
 
-        async function saveToCloud() {
-            if (!supabase || !state.customUser) return;
+        function cloneData(value) {
+            return value == null ? value : JSON.parse(JSON.stringify(value));
+        }
+
+        function stableStringify(value) {
+            if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+            if (value && typeof value === 'object') {
+                return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stableStringify(value[key])).join(',') + '}';
+            }
+            return JSON.stringify(value);
+        }
+
+        function normalizeTimestamp(value) {
+            if (value === null || value === undefined || value === '') return null;
+            const numeric = Number(value);
+            return Number.isFinite(numeric) ? numeric : null;
+        }
+
+        function pendingProgressKey(username = state.customUser?.username) {
+            return username ? 'gate_pending_progress_' + username.toLowerCase() : null;
+        }
+
+        function savePendingProgressSnapshot(subjects = state.subjects, targetDate = state.customTargetDate) {
+            if (!state.customUser) return null;
+            const pending = {
+                app: 'GATE_2027_CyberTracker',
+                formatVersion: 1,
+                username: state.customUser.username,
+                subjects: cloneData(subjects),
+                customTargetDate: normalizeTimestamp(targetDate),
+                baselineSubjects: cloneData(lastSyncedSubjects),
+                baselineTargetDate: normalizeTimestamp(lastSyncedTargetDate),
+                baselineVersion: lastSyncedVersion,
+                savedLocallyAt: new Date().toISOString()
+            };
             try {
-                await supabase
-                    .from('gate_accounts')
-                    .update({ 
-                        subjects: state.subjects,
-                        custom_target_date: state.customTargetDate
-                    })
-                    .eq('username', state.customUser.username);
-            } catch (e) {
-                console.error("Save error", e);
+                localStorage.setItem(pendingProgressKey(), JSON.stringify(pending));
+                state.pendingRecovery = pending;
+            } catch (err) {
+                state.saveError = 'Browser storage is unavailable. Export a manual backup to protect your progress.';
+                console.error('Local progress backup failed:', err);
+            }
+            return pending;
+        }
+
+        function detectPendingRecovery(username) {
+            state.pendingRecovery = null;
+            const key = pendingProgressKey(username);
+            if (!key) return;
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return;
+                const pending = JSON.parse(raw);
+                if (pending && pending.app === 'GATE_2027_CyberTracker' &&
+                    pending.username && pending.username.toLowerCase() === username.toLowerCase() &&
+                    Array.isArray(pending.subjects)) {
+                    state.pendingRecovery = pending;
+                    state.saveStatus = 'pending';
+                    state.saveError = 'A local copy may contain progress that has not synced to Supabase. Retry checks for conflicts before restoring it.';
+                }
+            } catch (err) {
+                console.warn('Could not read pending progress recovery:', err);
             }
         }
+
+        function updateSaveStatusUI() {
+            const statusEl = document.getElementById('save-status-indicator');
+            const detailEl = document.getElementById('save-error-detail');
+            const retryBtn = document.getElementById('retry-pending-button');
+            const conflictPanel = document.getElementById('sync-conflict-panel');
+            if (statusEl) {
+                const labels = {
+                    saving: 'Saving…',
+                    saved: 'Saved ✓',
+                    pending: 'Offline — retry pending',
+                    error: 'Save failed — retry available',
+                    conflict: 'Sync conflict — action needed'
+                };
+                statusEl.textContent = labels[state.saveStatus] || 'Sync status unknown';
+                statusEl.className = 'text-sm font-bold ' + ({
+                    saving: 'text-cyan-300',
+                    saved: 'text-emerald-400',
+                    pending: 'text-amber-300',
+                    error: 'text-rose-400',
+                    conflict: 'text-rose-300'
+                }[state.saveStatus] || 'text-slate-300');
+            }
+            if (detailEl) detailEl.textContent = state.saveError || 'Progress is stored in your account when sync succeeds.';
+            if (retryBtn) retryBtn.classList.toggle('hidden', !(state.pendingRecovery || state.saveStatus === 'pending' || state.saveStatus === 'error') || !!state.conflictData);
+            if (conflictPanel) conflictPanel.classList.toggle('hidden', !state.conflictData);
+        }
+
+        function setSaveStatus(status, message = '') {
+            state.saveStatus = status;
+            state.saveError = message;
+            updateSaveStatusUI();
+        }
+
+        function saveToCloud(force = false) {
+            if (!supabase || !state.customUser) return;
+            saveRevision++;
+            savePendingProgressSnapshot();
+
+            if (state.conflictData) {
+                setSaveStatus('conflict', 'Resolve the multi-device conflict below before making more progress changes.');
+                return;
+            }
+            if (!navigator.onLine) {
+                setSaveStatus('pending', 'You are offline. The latest changes are stored locally and can be retried.');
+                return;
+            }
+
+            state.saveError = '';
+            state.saveStatus = 'saving';
+            forceSaveRequested = forceSaveRequested || force;
+            updateSaveStatusUI();
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                saveTimer = null;
+                const forceThisSave = forceSaveRequested;
+                forceSaveRequested = false;
+                saveQueue = saveQueue
+                    .then(() => persistProgressToCloud(forceThisSave))
+                    .catch(err => {
+                        console.error('Unexpected progress sync error:', err);
+                        setSaveStatus(navigator.onLine ? 'error' : 'pending', err.message || 'Unexpected sync error. Retry is available.');
+                    });
+            }, 450);
+        }
+
+        async function persistProgressToCloud(force = false) {
+            if (!supabase || !state.customUser) return;
+            const username = state.customUser.username;
+            const snapshot = cloneData(state.subjects);
+            const targetDate = normalizeTimestamp(state.customTargetDate);
+            const revisionAtStart = saveRevision;
+
+            try {
+                if (!navigator.onLine) throw new Error('Network is offline. The latest progress is saved on this device and will need retrying.');
+
+                const { data: remote, error: readError } = await supabase
+                    .from('gate_accounts')
+                    .select('username, subjects, custom_target_date, progress_updated_at')
+                    .eq('username', username)
+                    .maybeSingle();
+                if (readError) throw readError;
+                if (!remote) throw new Error('Could not find your account in Supabase. No cloud changes were confirmed.');
+
+                const remoteDate = normalizeTimestamp(remote.custom_target_date);
+                const remoteVersion = remote.progress_updated_at || null;
+                const hasBaseline = Array.isArray(lastSyncedSubjects);
+                const remoteChanged = hasBaseline && (
+                    (lastSyncedVersion && remoteVersion !== lastSyncedVersion) ||
+                    stableStringify(remote.subjects || []) !== stableStringify(lastSyncedSubjects || []) ||
+                    remoteDate !== normalizeTimestamp(lastSyncedTargetDate)
+                );
+
+                if (!force && remoteChanged) {
+                    state.conflictData = {
+                        remoteSubjects: cloneData(remote.subjects || []),
+                        remoteTargetDate: remoteDate,
+                        remoteVersion,
+                        localSubjects: snapshot,
+                        localTargetDate: targetDate,
+                        username
+                    };
+                    savePendingProgressSnapshot(snapshot, targetDate);
+                    setSaveStatus('conflict', 'This account changed on another device after you opened it. Choose which copy to keep; nothing was overwritten.');
+                    return;
+                }
+
+                let updateQuery = supabase
+                    .from('gate_accounts')
+                    .update({ subjects: snapshot, custom_target_date: targetDate })
+                    .eq('username', username);
+                // Optimistic concurrency: this UPDATE succeeds only if the cloud row is still
+                // the version we inspected just above. The database trigger bumps this token.
+                if (remoteVersion) updateQuery = updateQuery.eq('progress_updated_at', remoteVersion);
+                const { data: updated, error: updateError } = await updateQuery
+                    .select('username, subjects, custom_target_date, progress_updated_at')
+                    .maybeSingle();
+                if (updateError) throw updateError;
+                if (!updated) {
+                    const { data: latest, error: latestError } = await supabase
+                        .from('gate_accounts')
+                        .select('username, subjects, custom_target_date, progress_updated_at')
+                        .eq('username', username)
+                        .maybeSingle();
+                    if (latestError) throw latestError;
+                    if (latest) {
+                        state.conflictData = {
+                            remoteSubjects: cloneData(latest.subjects || []),
+                            remoteTargetDate: normalizeTimestamp(latest.custom_target_date),
+                            remoteVersion: latest.progress_updated_at || null,
+                            localSubjects: snapshot,
+                            localTargetDate: targetDate,
+                            username
+                        };
+                        savePendingProgressSnapshot(snapshot, targetDate);
+                        setSaveStatus('conflict', 'Another device saved just before this update. No cloud data was overwritten; choose which copy to keep.');
+                        return;
+                    }
+                    throw new Error('Supabase did not confirm the save. Check table permissions/RLS, then retry.');
+                }
+
+                lastSyncedSubjects = cloneData(updated.subjects || snapshot);
+                lastSyncedTargetDate = normalizeTimestamp(updated.custom_target_date);
+                lastSyncedVersion = updated.progress_updated_at || remoteVersion || lastSyncedVersion;
+                if (revisionAtStart === saveRevision) {
+                    try { localStorage.removeItem(pendingProgressKey()); } catch (_) {}
+                    state.pendingRecovery = null;
+                    setSaveStatus('saved', 'Progress synced to Supabase.');
+                } else {
+                    state.saveStatus = 'saving';
+                    state.saveError = 'A newer change is waiting to sync.';
+                    updateSaveStatusUI();
+                }
+            } catch (err) {
+                console.error('Progress save failed:', err);
+                savePendingProgressSnapshot(snapshot, targetDate);
+                setSaveStatus(navigator.onLine ? 'error' : 'pending', (err && err.message ? err.message : 'Unknown sync failure') + ' Your local recovery copy has been kept when browser storage is available.');
+            }
+        }
+
+        async function retryPendingProgress() {
+            if (!state.customUser || !supabase) return;
+            let pending = state.pendingRecovery;
+            if (!pending) {
+                try {
+                    pending = JSON.parse(localStorage.getItem(pendingProgressKey()) || 'null');
+                } catch (_) { pending = null; }
+            }
+            if (!pending || !Array.isArray(pending.subjects)) {
+                saveToCloud();
+                return;
+            }
+            if (pending.username.toLowerCase() !== state.customUser.username.toLowerCase()) {
+                alert('This local recovery file belongs to a different account. Export/import only while logged in to the matching username.');
+                return;
+            }
+
+            try {
+                setSaveStatus('saving', 'Checking the cloud copy before restoring local progress…');
+                const { data: remote, error } = await supabase
+                    .from('gate_accounts')
+                    .select('username, subjects, custom_target_date, progress_updated_at')
+                    .eq('username', state.customUser.username)
+                    .maybeSingle();
+                if (error) throw error;
+                if (!remote) throw new Error('Could not read your cloud account.');
+
+                const remoteDate = normalizeTimestamp(remote.custom_target_date);
+                const remoteVersion = remote.progress_updated_at || null;
+                const baselineAvailable = Array.isArray(pending.baselineSubjects);
+                const changedSincePending = baselineAvailable && (
+                    (pending.baselineVersion && remoteVersion !== pending.baselineVersion) ||
+                    stableStringify(remote.subjects || []) !== stableStringify(pending.baselineSubjects || []) ||
+                    remoteDate !== normalizeTimestamp(pending.baselineTargetDate)
+                );
+                if (changedSincePending) {
+                    state.conflictData = {
+                        remoteSubjects: cloneData(remote.subjects || []),
+                        remoteTargetDate: remoteDate,
+                        remoteVersion,
+                        localSubjects: cloneData(pending.subjects),
+                        localTargetDate: normalizeTimestamp(pending.customTargetDate),
+                        username: state.customUser.username
+                    };
+                    setSaveStatus('conflict', 'The cloud changed after this local copy was created. Choose the cloud copy or explicitly keep the local copy.');
+                    return;
+                }
+
+                lastSyncedSubjects = cloneData(remote.subjects || []);
+                lastSyncedTargetDate = remoteDate;
+                lastSyncedVersion = remoteVersion;
+                state.subjects = cloneData(pending.subjects);
+                state.customTargetDate = normalizeTimestamp(pending.customTargetDate);
+                state.conflictData = null;
+                state.pendingRecovery = null;
+                if (state.customTargetDate) localStorage.setItem('gate_target_' + state.customUser.username, state.customTargetDate);
+                else localStorage.removeItem('gate_target_' + state.customUser.username);
+                render();
+                saveToCloud();
+            } catch (err) {
+                console.error('Pending progress retry failed:', err);
+                setSaveStatus(navigator.onLine ? 'error' : 'pending', err.message || 'Could not retry pending progress.');
+            }
+        }
+
+        window.retryPendingProgress = retryPendingProgress;
+
+        window.useCloudVersion = function() {
+            if (!state.conflictData) return;
+            const remote = state.conflictData;
+            state.subjects = cloneData(remote.remoteSubjects || []);
+            state.customTargetDate = normalizeTimestamp(remote.remoteTargetDate);
+            lastSyncedSubjects = cloneData(remote.remoteSubjects || []);
+            lastSyncedTargetDate = normalizeTimestamp(remote.remoteTargetDate);
+            lastSyncedVersion = remote.remoteVersion || null;
+            state.conflictData = null;
+            state.pendingRecovery = null;
+            try { localStorage.removeItem(pendingProgressKey()); } catch (_) {}
+            if (state.customTargetDate) localStorage.setItem('gate_target_' + state.customUser.username, state.customTargetDate);
+            else localStorage.removeItem('gate_target_' + state.customUser.username);
+            setSaveStatus('saved', 'Loaded the latest copy from Supabase.');
+            render();
+        };
+
+        window.keepLocalVersion = function() {
+            if (!state.conflictData) return;
+            if (!confirm('Replace the cloud progress with this device’s copy? This can discard changes made on another device. Export a backup first if unsure.')) return;
+            const conflict = state.conflictData;
+            state.subjects = cloneData(conflict.localSubjects || state.subjects);
+            state.customTargetDate = normalizeTimestamp(conflict.localTargetDate);
+            lastSyncedSubjects = cloneData(conflict.remoteSubjects || []);
+            lastSyncedTargetDate = normalizeTimestamp(conflict.remoteTargetDate);
+            lastSyncedVersion = conflict.remoteVersion || lastSyncedVersion;
+            state.conflictData = null;
+            state.pendingRecovery = null;
+            render();
+            saveToCloud(true);
+        };
+
+        window.exportProgress = function() {
+            if (!state.customUser) return;
+            const backup = {
+                app: 'GATE_2027_CyberTracker',
+                formatVersion: 1,
+                exportedAt: new Date().toISOString(),
+                username: state.customUser.username,
+                customTargetDate: normalizeTimestamp(state.customTargetDate),
+                subjects: cloneData(state.subjects)
+            };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `gate-cybertracker-${state.customUser.username}-backup-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            setSaveStatus(state.saveStatus, 'Progress backup downloaded. Keep this JSON file private; it contains your study data.');
+        };
+
+        window.importProgressFile = async function(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file || !state.customUser) return;
+            try {
+                const payload = JSON.parse(await file.text());
+                if (payload.app !== 'GATE_2027_CyberTracker' || payload.formatVersion !== 1 || !Array.isArray(payload.subjects)) {
+                    throw new Error('This is not a supported CyberTracker backup file.');
+                }
+                if (!payload.username || payload.username.toLowerCase() !== state.customUser.username.toLowerCase()) {
+                    throw new Error('This backup belongs to a different username. Log in to the matching account before importing.');
+                }
+                const valid = payload.subjects.every(subject => subject && typeof subject.id === 'string' &&
+                    typeof subject.name === 'string' && Array.isArray(subject.chapters) &&
+                    subject.chapters.every(ch => ch && typeof ch.id === 'string' && typeof ch.name === 'string'));
+                if (!valid) throw new Error('The backup structure is incomplete or invalid. No data was changed.');
+                if (!confirm('Import this backup and replace the progress currently shown on this account? This will sync your imported copy to Supabase.')) return;
+
+                state.subjects = cloneData(payload.subjects).map(subject => ({
+                    ...subject,
+                    notes: Array.isArray(subject.notes) ? subject.notes : [],
+                    chapters: subject.chapters.map(chapter => ({
+                        ...chapter,
+                        theory: chapter.theory === true,
+                        questions: chapter.questions === true,
+                        rating: RATING_OPTIONS.includes(chapter.rating) ? chapter.rating : null
+                    }))
+                }));
+                state.customTargetDate = normalizeTimestamp(payload.customTargetDate);
+                state.conflictData = null;
+                state.pendingRecovery = null;
+                lastSyncedSubjects = cloneData(lastSyncedSubjects || []);
+                if (state.customTargetDate) localStorage.setItem('gate_target_' + state.customUser.username, state.customTargetDate);
+                else localStorage.removeItem('gate_target_' + state.customUser.username);
+                render();
+                saveToCloud(true);
+                alert('Backup imported. Check the sync indicator to confirm it is Saved ✓. Keep this tab open until sync completes.');
+            } catch (err) {
+                alert('Import failed: ' + (err.message || 'Invalid file'));
+            } finally {
+                event.target.value = '';
+            }
+        };
 
         function loadLocalSettings(username) {
             const savedDate = localStorage.getItem('gate_target_' + username);
@@ -530,6 +970,7 @@
         };
 
         window.markSubjectComplete = function(subjectId, isComplete) {
+            if (state.conflictData) { alert('Resolve the sync conflict before changing progress.'); return; }
             state.subjects = state.subjects.map(sub => {
                 if (sub.id !== subjectId) return sub;
                 return {
@@ -546,6 +987,7 @@
         };
 
         window.toggleChapter = function(subjectId, chapterId, type) {
+            if (state.conflictData) { alert('Resolve the sync conflict before changing progress.'); return; }
             state.subjects = state.subjects.map(sub => {
                 if (sub.id !== subjectId) return sub;
                 return {
@@ -560,8 +1002,26 @@
             saveToCloud();
         };
 
+        window.rateChapter = function(subjectId, chapterId, rating) {
+            if (state.conflictData) { alert('Resolve the sync conflict before rating chapters.'); return; }
+            if (rating !== null && !RATING_OPTIONS.includes(rating)) return;
+            state.subjects = state.subjects.map(subject => {
+                if (subject.id !== subjectId) return subject;
+                return {
+                    ...subject,
+                    chapters: subject.chapters.map(chapter => chapter.id === chapterId
+                        ? { ...chapter, rating, ratingUpdatedAt: rating ? new Date().toISOString() : null }
+                        : chapter)
+                };
+            });
+            state.activeChapterRating = null;
+            render();
+            saveToCloud();
+        };
+
         window.updateCustomTargetDate = function(val) {
             if (!state.customUser) return;
+            if (state.conflictData) { alert('Resolve the sync conflict before changing the target date.'); return; }
             if (val) {
                 const dateObj = val instanceof Date ? val : new Date(val);
                 state.customTargetDate = dateObj.getTime();
@@ -805,6 +1265,24 @@
 
         function setupEventListeners() {
             document.getElementById('app').addEventListener('click', (e) => {
+                const ratingToggle = e.target.closest('[data-action="toggleChapterRating"]');
+                if (ratingToggle) {
+                    if (state.conflictData) { alert('Resolve the sync conflict before rating chapters.'); return; }
+                    const subjectId = ratingToggle.getAttribute('data-subject-id');
+                    const chapterId = ratingToggle.getAttribute('data-chapter-id');
+                    const current = state.activeChapterRating;
+                    state.activeChapterRating = current && current.subjectId === subjectId && current.chapterId === chapterId ? null : { subjectId, chapterId };
+                    render();
+                    return;
+                }
+
+                const ratingBtn = e.target.closest('[data-action="setChapterRating"]');
+                if (ratingBtn) {
+                    const rating = ratingBtn.getAttribute('data-rating') || null;
+                    window.rateChapter(ratingBtn.getAttribute('data-subject-id'), ratingBtn.getAttribute('data-chapter-id'), rating);
+                    return;
+                }
+
                 const markBtn = e.target.closest('[data-action="markComplete"]');
                 if (markBtn) {
                     const subjectId = markBtn.getAttribute('data-subject-id');
@@ -1249,18 +1727,39 @@
                     chaptersHTML = `
                         <div class="border-t border-slate-800/50 bg-slate-950/50 p-4 sm:p-5">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                ${subject.chapters.map(chapter => `
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/40 hover:border-slate-700 transition-colors gap-3">
-                                        <span class="text-sm text-slate-300 font-medium truncate flex-1" title="${chapter.name}">
-                                            ${chapter.name}
-                                        </span>
-                                        <div class="flex items-center gap-4 shrink-0">
-                                            ${renderCheckbox(chapter.theory, 'THY', 'theory', subject.id, chapter.id)}
-                                            <div class="w-px h-5 bg-slate-700"></div>
-                                            ${renderCheckbox(chapter.questions, 'PYQ', 'questions', subject.id, chapter.id)}
+                                ${subject.chapters.map(chapter => {
+                                    const ratingActive = state.activeChapterRating && state.activeChapterRating.subjectId === subject.id && state.activeChapterRating.chapterId === chapter.id;
+                                    const chapterRating = RATING_OPTIONS.includes(chapter.rating) ? chapter.rating : null;
+                                    const ratingBadgeClass = ({ Again: 'text-rose-300 border-rose-800 bg-rose-950/50', Hard: 'text-amber-300 border-amber-800 bg-amber-950/50', Good: 'text-cyan-300 border-cyan-800 bg-cyan-950/50', Easy: 'text-emerald-300 border-emerald-800 bg-emerald-950/50' })[chapterRating] || '';
+                                    return `
+                                    <div class="flex flex-col p-3 rounded-lg bg-slate-900/40 border border-slate-800/40 hover:border-slate-700 transition-colors gap-3">
+                                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                                <button type="button" data-action="toggleChapterRating" data-subject-id="${subject.id}" data-chapter-id="${chapter.id}" class="text-left text-sm text-slate-300 hover:text-cyan-300 font-medium truncate flex-1" title="Click to rate this chapter: ${chapter.name}">
+                                                    ${chapter.name}
+                                                </button>
+                                                ${chapterRating ? `<span class="text-[10px] border ${ratingBadgeClass} px-2 py-0.5 rounded-full font-mono shrink-0">${chapterRating}</span>` : `<span class="text-[10px] text-slate-600 font-mono shrink-0">RATE</span>`}
+                                            </div>
+                                            <div class="flex items-center gap-4 shrink-0">
+                                                ${renderCheckbox(chapter.theory, 'THY', 'theory', subject.id, chapter.id)}
+                                                <div class="w-px h-5 bg-slate-700"></div>
+                                                ${renderCheckbox(chapter.questions, 'PYQ', 'questions', subject.id, chapter.id)}
+                                            </div>
                                         </div>
+                                        ${ratingActive ? `
+                                            <div class="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
+                                                <span class="text-[10px] text-slate-500 uppercase tracking-wider mr-1">How was this chapter?</span>
+                                                ${RATING_OPTIONS.map(option => {
+                                                    const optionClass = ({ Again: 'border-rose-800 text-rose-300 hover:bg-rose-950/70', Hard: 'border-amber-800 text-amber-300 hover:bg-amber-950/70', Good: 'border-cyan-800 text-cyan-300 hover:bg-cyan-950/70', Easy: 'border-emerald-800 text-emerald-300 hover:bg-emerald-950/70' })[option];
+                                                    const selectedClass = chapterRating === option ? 'ring-2 ring-white/50' : '';
+                                                    return `<button type="button" data-action="setChapterRating" data-subject-id="${subject.id}" data-chapter-id="${chapter.id}" data-rating="${option}" class="text-xs font-mono px-3 py-1.5 rounded-lg border ${optionClass} ${selectedClass} transition-colors">${option}</button>`;
+                                                }).join('')}
+                                                ${chapterRating ? `<button type="button" data-action="setChapterRating" data-subject-id="${subject.id}" data-chapter-id="${chapter.id}" data-rating="" class="text-xs px-2 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white">Clear</button>` : ''}
+                                            </div>
+                                        ` : ''}
                                     </div>
-                                `).join('')}
+                                `;
+                                }).join('')}
                             </div>
                         </div>
                     `;
@@ -1380,6 +1879,35 @@
                         </div>
                     </header>
 
+                    <!-- PROGRESS SYNC + MANUAL BACKUP -->
+                    <section class="mb-6 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5" aria-live="polite">
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
+                                    <span id="save-status-indicator" class="text-sm font-bold text-emerald-400">Saved ✓</span>
+                                </div>
+                                <p id="save-error-detail" class="text-xs text-slate-500 mt-1 break-words">Progress is stored in your account when sync succeeds.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button id="retry-pending-button" type="button" onclick="retryPendingProgress()" class="hidden text-xs font-mono px-3 py-2 rounded-lg border border-amber-700 text-amber-300 hover:bg-amber-950/60">Retry pending save</button>
+                                <button type="button" onclick="exportProgress()" class="text-xs font-mono px-3 py-2 rounded-lg border border-cyan-800 text-cyan-300 hover:bg-cyan-950/60">Export backup</button>
+                                <label class="cursor-pointer text-xs font-mono px-3 py-2 rounded-lg border border-fuchsia-800 text-fuchsia-300 hover:bg-fuchsia-950/60">
+                                    Import backup
+                                    <input type="file" accept="application/json,.json" class="hidden" onchange="importProgressFile(event)">
+                                </label>
+                            </div>
+                        </div>
+                        <div id="sync-conflict-panel" class="hidden mt-4 p-4 rounded-xl border border-rose-800/70 bg-rose-950/20">
+                            <p class="text-sm font-bold text-rose-300">This account changed on another device.</p>
+                            <p class="text-xs text-slate-400 mt-1 mb-3">Nothing was overwritten. Choose the cloud version to discard this device's unsynced changes, or keep this device's version to overwrite the cloud copy. Export a backup first if unsure.</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="useCloudVersion()" class="text-xs font-mono px-3 py-2 rounded-lg border border-cyan-800 text-cyan-300 hover:bg-cyan-950/60">Load cloud version</button>
+                                <button type="button" onclick="keepLocalVersion()" class="text-xs font-mono px-3 py-2 rounded-lg border border-rose-800 text-rose-300 hover:bg-rose-950/60">Keep this device's version</button>
+                            </div>
+                        </div>
+                    </section>
+
                     <!-- OVERALL PROGRESS -->
                     <section class="mb-6 bg-slate-900/60 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
                         <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-emerald-500"></div>
@@ -1488,8 +2016,9 @@
                 ${renderDeleteConfirmModal()}
             `;
             
-            // Re-bind DOM references for the ticker
+            // Re-bind DOM references for the ticker and sync-status controls
             updateCountdownDOM();
+            updateSaveStatusUI();
 
             const datePickerEl = document.getElementById('custom-target-date-picker');
             if (datePickerEl) {
